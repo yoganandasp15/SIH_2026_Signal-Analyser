@@ -1,0 +1,34 @@
+[
+  {
+    "name": "NAVTEX",
+    "url": "https://www.sigidwiki.com/wiki/NAVTEX",
+    "audio_file": "NAVTEX.wav",
+    "format": "wav",
+    "sigid_mode": "N/A",
+    "sigid_modulation": "N/A",
+    "sigid_bandwidth": "N/A",
+    "expected": {
+      "name": "NAVTEX",
+      "url": "https://www.sigidwiki.com/wiki/NAVTEX",
+      "expected_mod": "2-FSK / SITOR-B",
+      "expected_baud": 100,
+      "type": "Maritime Navigational Telex"
+    }
+  },
+  {
+    "name": "PSK31",
+    "url": "https://www.sigidwiki.com/wiki/PSK31",
+    "audio_file": "PSK31.wav",
+    "format": "wav",
+    "sigid_mode": "N/A",
+    "sigid_modulation": "N/A",
+    "sigid_bandwidth": "N/A",
+    "expected": {
+      "name": "PSK31",
+      "url": "https://www.sigidwiki.com/wiki/PSK31",
+      "expected_mod": "BPSK / PSK",
+      "expected_baud": 31.25,
+      "type": "Phase Shift Keying"
+    }
+  }
+]
