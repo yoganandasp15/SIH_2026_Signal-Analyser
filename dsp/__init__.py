@@ -49,6 +49,37 @@ from .modulation_classifier import (
 from .pulse_analyzer import analyze_pulse_train
 from .autonomous_detector import detect_signal_autonomously
 from .adaptive_pipeline import run_adaptive_pipeline, AdaptiveExtractionPipeline
+from .temporal_validator import (
+    TemporalValidationConfig,
+    MultiWindowTemporalValidator,
+    validate_temporal_consistency
+)
+from .candidate_ranker import (
+    CandidateRankingConfig,
+    generate_candidate_hypotheses,
+    rank_and_evaluate_candidates,
+    apply_candidate_ranking_to_detection
+)
+from .contradiction_analyzer import (
+    ContradictionCategory,
+    MeasurableContradiction,
+    ContradictionConfig,
+    ContradictionAnalysisResult,
+    analyze_candidate_contradictions,
+    apply_contradiction_analysis
+)
+from .validation_gate import (
+    ValidationGateStatus,
+    ValidationGateConfig,
+    GateCheckResult,
+    ValidationGateTrace,
+    HypothesisValidationGate,
+    run_validation_gate
+)
+from .parameter_uncertainty import (
+    build_parameter_uncertainty_report,
+    get_verdict_explanation
+)
 
 # V3 Architecture Epistemic & Pipeline Exports
 from .contracts import (
@@ -88,6 +119,26 @@ from .fec import (
 from .framing import analyze_frame_structure, compute_crc, CRC_PROFILES
 from .evidence import fuse_evidence
 
+# Layer A & Layer B Blind Parameter & Inference Exports
+from .contracts import BlindParameterVector
+from .blind_parameter_engine import (
+    extract_blind_parameters,
+    detect_signal_activity_and_segments,
+    estimate_adaptive_noise_floor,
+    compute_multi_resolution_spectrum,
+    estimate_generic_frequency_structure,
+    discover_blind_fsk_states,
+    estimate_blind_symbol_rate_consensus,
+    estimate_blind_cyclostationary_frequencies,
+    discover_constellation_geometry,
+    discover_blind_frequency_hopping,
+    extract_waveform_morphology,
+    validate_parameter_consistency,
+    build_blindness_provenance
+)
+from .modulation_inference import infer_modulation_from_blind_params, ModulationInferenceResult
+from .protocol_inference import infer_protocol_from_blind_params
+
 
 __all__ = [
     # Legacy Core DSP
@@ -112,6 +163,24 @@ __all__ = [
     "detect_signal_autonomously",
     "run_adaptive_pipeline",
     "AdaptiveExtractionPipeline",
+    "CandidateRankingConfig",
+    "generate_candidate_hypotheses",
+    "rank_and_evaluate_candidates",
+    "apply_candidate_ranking_to_detection",
+    "ContradictionCategory",
+    "MeasurableContradiction",
+    "ContradictionConfig",
+    "ContradictionAnalysisResult",
+    "analyze_candidate_contradictions",
+    "apply_contradiction_analysis",
+    "ValidationGateStatus",
+    "ValidationGateConfig",
+    "GateCheckResult",
+    "ValidationGateTrace",
+    "HypothesisValidationGate",
+    "run_validation_gate",
+    "build_parameter_uncertainty_report",
+    "get_verdict_explanation",
     # V3 Epistemic Contracts
     "EpistemicStatus",
     "SamplingRateStatus",
@@ -150,6 +219,28 @@ __all__ = [
     "analyze_frame_structure",
     "compute_crc",
     "CRC_PROFILES",
-    "fuse_evidence"
+    "fuse_evidence",
+    # Temporal Validation
+    "TemporalValidationConfig",
+    "MultiWindowTemporalValidator",
+    "validate_temporal_consistency",
+    # Blind Parameter Engine & Inference (Layer A & B)
+    "BlindParameterVector",
+    "extract_blind_parameters",
+    "detect_signal_activity_and_segments",
+    "estimate_adaptive_noise_floor",
+    "compute_multi_resolution_spectrum",
+    "estimate_generic_frequency_structure",
+    "discover_blind_fsk_states",
+    "estimate_blind_symbol_rate_consensus",
+    "estimate_blind_cyclostationary_frequencies",
+    "discover_constellation_geometry",
+    "discover_blind_frequency_hopping",
+    "extract_waveform_morphology",
+    "validate_parameter_consistency",
+    "build_blindness_provenance",
+    "infer_modulation_from_blind_params",
+    "ModulationInferenceResult",
+    "infer_protocol_from_blind_params"
 ]
 

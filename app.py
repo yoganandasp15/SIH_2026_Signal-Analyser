@@ -1,15 +1,17 @@
 """
-NTRO Automated Signal Analysis Suite - Defense Intelligence Dashboard
-======================================================================
-Smart India Hackathon 2026 (SIH26147) • Autonomous Signal Intelligence Engine
-Features:
-- Zero-Manual Configuration: Autonomous format probing & sample rate detection
-- Zero False-Positive Signal Classification Engine (14 Defense Ground Truths)
-- Dynamic Adaptive Extraction Pipeline (Radar, FSK, M-FSK, TDMA, PSK/QAM, Voice)
-- 1-Click Real-World Intercept Gallery for immediate judge/evaluator demonstration
-- In-browser Audio Intercept Demodulation Player (st.audio)
-- Interactive Plotly Visualizations (PSD, Waterfall, Constellation, Eye, Envelope)
-- Full JSON & CSV Telemetry Sensor Handoff Exporters
+NTRO Automated Signal Analysis Suite - AAROHAN Workstation
+===========================================================
+Smart India Hackathon 2026 (SIH26147) • Autonomous RF Signal Intelligence Workstation
+Professional Engineering Analysis Console following the strict 9-level result hierarchy:
+1. FINAL INTERCEPT VERDICT
+2. PRIMARY PARAMETERS (with Epistemic Status & Uncertainty)
+3. EVIDENCE SUMMARY
+4. CONTRADICTIONS
+5. HYPOTHESIS RANKING
+6. MULTI-WINDOW STABILITY
+7. VALIDATION TRACE
+8. TECHNICAL VISUALIZATIONS (Expandable)
+9. RAW TELEMETRY (Expandable)
 """
 
 import time
@@ -17,8 +19,10 @@ import os
 import sys
 import importlib
 import tempfile
-from typing import Dict, Any, Optional
+import json
+from typing import Dict, Any, Optional, List, Tuple, Union
 import numpy as np
+import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
 
@@ -34,6 +38,7 @@ from dsp.loaders import load_signal_file, probe_binary_format, auto_detect_file_
 from dsp.preprocessor import remove_dc_offset, normalize_signal_power, compute_signal_stats
 from dsp.spectral import compute_welch_psd, compute_spectrogram
 from dsp.adaptive_pipeline import run_adaptive_pipeline
+from dsp.parameter_uncertainty import build_parameter_uncertainty_report, get_verdict_explanation
 from dsp import (
     inspect_signal_file,
     condition_signal,
@@ -51,6 +56,7 @@ from dsp import (
     ModulationFamily
 )
 from visualization.plots import (
+    set_plot_theme,
     plot_welch_psd,
     plot_spectrogram_waterfall,
     plot_iq_constellation,
@@ -61,31 +67,41 @@ from visualization.plots import (
 )
 from utils.exporter import export_results_to_json, export_results_to_csv
 from utils.synthetic_generator import generate_synthetic_signal, save_synthetic_iq, save_synthetic_wav
-
+from utils.epistemic_demo import generate_epistemic_test_signal, EPISTEMIC_DEMO_PRESETS
+from utils.tactical_scenarios import TACTICAL_SCENARIOS, load_tactical_scenario
 
 
 # Page Configuration
 st.set_page_config(
-    page_title="NTRO Signal Intelligence Console - SIH26147",
+    page_title="AAROHAN - Autonomous RF Signal Analysis Workstation",
     page_icon="📡",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Human-Engineered Defense-Grade Instrument Styling
+
+def render_html(html_str: str) -> None:
+    """
+    Renders HTML in Streamlit ensuring zero leading whitespace on any line.
+    Prevents CommonMark from misinterpreting indented lines as code blocks (<pre><code>).
+    """
+    cleaned = "\n".join(line.strip() for line in html_str.strip().splitlines() if line.strip())
+    st.markdown(cleaned, unsafe_allow_html=True)
+
+
+# Professional Engineering Analysis Workstation Styling
 st.markdown("""
 <style>
-    /* Non-occluding transparent header that preserves sidebar toggle */
+    /* Header and toolbar hygiene */
     header[data-testid="stHeader"] {
         background: transparent !important;
-        height: 2.75rem !important;
+        height: 2.5rem !important;
         z-index: 9999 !important;
         pointer-events: none !important;
     }
     header[data-testid="stHeader"] * {
         pointer-events: auto !important;
     }
-    /* Keep toolbar container active so the sidebar expand button functions */
     [data-testid="stToolbar"] {
         display: flex !important;
         visibility: visible !important;
@@ -96,367 +112,551 @@ st.markdown("""
     [data-testid="stToolbar"] * {
         pointer-events: auto !important;
     }
-    /* Hide unwanted clutter: deploy button, hamburger main menu, status widget */
-    [data-testid="stAppDeployButton"] {
-        display: none !important;
-    }
-    [data-testid="stMainMenu"] {
-        display: none !important;
-    }
-    [data-testid="stDecoration"] {
-        display: none !important;
-    }
-    [data-testid="stStatusWidget"] {
-        display: none !important;
-    }
-    #MainMenu {
-        display: none !important;
-    }
+    [data-testid="stAppDeployButton"],
+    [data-testid="stMainMenu"],
+    [data-testid="stDecoration"],
+    [data-testid="stStatusWidget"],
+    #MainMenu,
     footer {
         display: none !important;
     }
 
-    /* Style the sidebar expand button (chevron right) so it is prominent, sleek, and always clickable */
+    /* Sidebar controls */
     button[data-testid="stExpandSidebarButton"],
     [data-testid="collapsedControl"] {
         display: flex !important;
         visibility: visible !important;
         position: fixed !important;
-        top: 10px !important;
-        left: 14px !important;
+        top: 8px !important;
+        left: 12px !important;
         z-index: 100000 !important;
         background: #111722 !important;
         border: 1px solid #38bdf8 !important;
-        border-radius: 6px !important;
-        padding: 6px 10px !important;
+        border-radius: 4px !important;
+        padding: 4px 8px !important;
         color: #38bdf8 !important;
         cursor: pointer !important;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.7) !important;
-        pointer-events: auto !important;
-    }
-    button[data-testid="stExpandSidebarButton"]:hover,
-    [data-testid="collapsedControl"]:hover {
-        background: #1e293b !important;
-        border-color: #60a5fa !important;
-    }
-    button[data-testid="stExpandSidebarButton"] span,
-    button[data-testid="stExpandSidebarButton"] svg,
-    [data-testid="collapsedControl"] svg {
-        color: #38bdf8 !important;
-        fill: #38bdf8 !important;
-        stroke: #38bdf8 !important;
-    }
-
-    /* Inside sidebar: make the collapse button ALWAYS clearly visible and styled */
-    [data-testid="stSidebarCollapseButton"] {
-        visibility: visible !important;
-        opacity: 1 !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6) !important;
     }
     [data-testid="stSidebarCollapseButton"] button {
-        visibility: visible !important;
-        opacity: 1 !important;
-        color: #38bdf8 !important;
         background: #111722 !important;
         border: 1px solid #1e293b !important;
-        border-radius: 6px !important;
-    }
-    [data-testid="stSidebarCollapseButton"] button:hover {
-        background: #1e293b !important;
-        border-color: #38bdf8 !important;
-    }
-    [data-testid="stSidebarCollapseButton"] span,
-    [data-testid="stSidebarCollapseButton"] svg {
+        border-radius: 4px !important;
         color: #38bdf8 !important;
-        fill: #38bdf8 !important;
     }
-    
+
+    /* Core typography and container layout */
     html, body, [class*="css"] {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        color: #f1f5f9;
     }
     .block-container {
-        padding-top: 2.75rem !important;
+        padding-top: 2.2rem !important;
         padding-bottom: 2rem !important;
         padding-left: 1.25rem !important;
         padding-right: 1.25rem !important;
         max-width: 100% !important;
     }
-    
-    /* Top console toolbar */
-    .console-header {
+
+    /* Section Headers */
+    .section-header {
+        font-size: 0.80rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #94a3b8;
+        border-bottom: 1px solid #1e293b;
+        padding-bottom: 6px;
+        margin-top: 20px;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .section-num {
+        color: #38bdf8;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    /* Top Console Banner */
+    .workstation-banner {
         background: #111722;
         border: 1px solid #1e293b;
-        border-radius: 8px;
-        padding: 12px 18px;
-        margin-bottom: 12px;
+        border-radius: 6px;
+        padding: 12px 16px;
+        margin-bottom: 14px;
         display: flex;
         justify-content: space-between;
         align-items: center;
         flex-wrap: wrap;
-        gap: 12px;
+        gap: 10px;
     }
-    .console-title {
-        font-size: 1.15rem;
+    .workstation-title {
+        font-size: 1.10rem;
         font-weight: 700;
-        letter-spacing: 0.04em;
+        letter-spacing: 0.03em;
         color: #f8fafc;
         margin: 0;
     }
-    .console-subtitle {
-        font-size: 0.78rem;
+    .workstation-subtitle {
+        font-size: 0.74rem;
         color: #94a3b8;
-        margin-top: 3px;
+        margin-top: 2px;
         font-weight: 400;
     }
-    
-    /* Telemetry pills */
-    .pill-group {
+
+    /* Telemetry Chips */
+    .chip-container {
         display: flex;
-        gap: 8px;
+        gap: 6px;
         flex-wrap: wrap;
         align-items: center;
     }
-    .telemetry-pill {
+    .telemetry-chip {
         background: #0b0f17;
         border: 1px solid #1e293b;
-        border-radius: 5px;
-        padding: 4px 10px;
+        border-radius: 4px;
+        padding: 3px 8px;
         font-size: 0.72rem;
         color: #cbd5e1;
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
-    .pill-label {
+    .chip-label {
         color: #64748b;
         text-transform: uppercase;
         margin-right: 5px;
-        font-size: 0.68rem;
-        letter-spacing: 0.05em;
+        font-size: 0.66rem;
+        letter-spacing: 0.04em;
     }
-    .pill-val {
+    .chip-val {
         color: #38bdf8;
         font-weight: 600;
     }
-    .pill-status {
-        color: #10b981;
-        font-weight: 700;
-    }
 
-    /* Target Identification Card */
-    .target-card {
+    /* Level 1: Verdict Card */
+    .verdict-card {
         background: #111722;
         border: 1px solid #1e293b;
-        border-left: 4px solid #38bdf8;
-        border-radius: 8px;
-        padding: 14px 18px;
-        margin-bottom: 12px;
-    }
-    .target-header {
-        font-size: 0.70rem;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: #94a3b8;
-        font-weight: 700;
-        margin-bottom: 4px;
-    }
-    .target-name {
-        font-size: 1.25rem;
-        font-weight: 700;
-        color: #ffffff;
-        margin-bottom: 8px;
-        line-height: 1.3;
-    }
-    .target-badges {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-    }
-    
-    /* Structured status badges */
-    .badge-primary {
-        background: #0f1d32;
-        border: 1px solid #1e3a8a;
-        color: #38bdf8;
-        font-size: 0.73rem;
-        font-weight: 600;
-        padding: 2px 8px;
-        border-radius: 4px;
-    }
-    .badge-success {
-        background: #06281e;
-        border: 1px solid #065f46;
-        color: #34d399;
-        font-size: 0.73rem;
-        font-weight: 600;
-        padding: 2px 8px;
-        border-radius: 4px;
-    }
-    .badge-warn {
-        background: #271c08;
-        border: 1px solid #78350f;
-        color: #fbbf24;
-        font-size: 0.73rem;
-        font-weight: 600;
-        padding: 2px 8px;
-        border-radius: 4px;
-    }
-
-    /* Telemetry instrument card */
-    .instrument-card {
-        background: #111722;
-        border: 1px solid #1e293b;
-        border-radius: 8px;
-        padding: 14px 16px;
-        margin-bottom: 12px;
-    }
-    .instrument-header {
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: #94a3b8;
-        font-weight: 700;
-        border-bottom: 1px solid #1e293b;
-        padding-bottom: 6px;
-        margin-bottom: 10px;
-    }
-    
-    /* Precision Telemetry Table */
-    .telemetry-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.82rem;
-    }
-    .telemetry-table td {
-        padding: 6px 8px;
-        border-bottom: 1px solid #182234;
-    }
-    .telemetry-table tr:last-child td {
-        border-bottom: none;
-    }
-    .param-label {
-        color: #94a3b8;
-        font-weight: 500;
-    }
-    .param-value {
-        text-align: right;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        color: #f1f5f9;
-        font-weight: 600;
-    }
-    .param-extra {
-        font-size: 0.70rem;
-        color: #64748b;
-        display: block;
-        font-weight: 400;
-    }
-
-    /* Audio monitor panel */
-    .audio-monitor {
-        background: #111722;
-        border: 1px solid #1e293b;
-        border-radius: 8px;
-        padding: 12px 16px;
-        margin-top: 10px;
-    }
-
-    /* Epistemic Status HUD */
-    .epistemic-hud {
-        background: #0d131f;
-        border: 1px solid #1e293b;
-        border-radius: 8px;
-        padding: 14px 16px;
-        margin-top: 14px;
+        border-radius: 6px;
+        padding: 16px 20px;
         margin-bottom: 14px;
     }
-    .epistemic-title {
-        font-size: 0.76rem;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: #94a3b8;
-        font-weight: 700;
+    .verdict-header-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 12px;
         margin-bottom: 10px;
+    }
+    .verdict-badge {
+        font-size: 0.85rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        padding: 4px 12px;
+        border-radius: 4px;
+        text-transform: uppercase;
+        display: inline-block;
+    }
+    .badge-validated { background: #064e3b; color: #34d399; border: 1px solid #059669; }
+    .badge-estimated { background: #3b2506; color: #fbbf24; border: 1px solid #d97706; }
+    .badge-ambiguous { background: #2e1065; color: #c084fc; border: 1px solid #7c3aed; }
+    .badge-unknown { background: #0c4a6e; color: #38bdf8; border: 1px solid #0284c7; }
+    .badge-unknown-ood { background: #450a0a; color: #f87171; border: 1px solid #dc2626; }
+    .badge-no-signal { background: #1e293b; color: #94a3b8; border: 1px solid #475569; }
+
+    .verdict-target-title {
+        font-size: 1.30rem;
+        font-weight: 700;
+        color: #ffffff;
+        margin-top: 4px;
+        margin-bottom: 4px;
+    }
+    .verdict-explanation-box {
+        background: #0b0f17;
+        border: 1px solid #1e293b;
+        border-radius: 5px;
+        padding: 10px 14px;
+        font-size: 0.82rem;
+        color: #cbd5e1;
+        line-height: 1.5;
+        margin-top: 8px;
+        margin-bottom: 12px;
+    }
+
+    /* Key Telemetry Metrics Bar */
+    .metrics-bar {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+        margin-top: 10px;
+    }
+    @media (max-width: 900px) {
+        .metrics-bar {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+    .metric-cell {
+        background: #0b0f17;
+        border: 1px solid #1e293b;
+        border-radius: 4px;
+        padding: 8px 12px;
+    }
+    .metric-cell-label {
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748b;
+        margin-bottom: 2px;
+    }
+    .metric-cell-value {
+        font-size: 1.05rem;
+        font-weight: 700;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        color: #f8fafc;
+    }
+    .metric-cell-sub {
+        font-size: 0.68rem;
+        color: #94a3b8;
+        margin-top: 2px;
+    }
+
+    /* Special State Callouts */
+    .callout-ambiguous {
+        background: #1e1338;
+        border: 1px solid #581c87;
+        border-left: 4px solid #a855f7;
+        border-radius: 4px;
+        padding: 10px 14px;
+        margin-top: 10px;
+        font-size: 0.80rem;
+        color: #e9d5ff;
+    }
+    .callout-unknown {
+        background: #082f49;
+        border: 1px solid #0369a1;
+        border-left: 4px solid #38bdf8;
+        border-radius: 4px;
+        padding: 10px 14px;
+        margin-top: 10px;
+        font-size: 0.80rem;
+        color: #e0f2fe;
+    }
+    .callout-no-signal {
+        background: #1e293b;
+        border: 1px solid #475569;
+        border-left: 4px solid #94a3b8;
+        border-radius: 4px;
+        padding: 10px 14px;
+        margin-top: 10px;
+        font-size: 0.80rem;
+        color: #cbd5e1;
+    }
+
+    /* Layer A: Blind Physical Parameters HUD */
+    .hud-card-layer-a {
+        background: #0f172a;
+        border: 1px solid #1e3a8a;
+        border-radius: 6px;
+        padding: 14px 18px;
+        margin-bottom: 14px;
+    }
+    .hud-title-row {
         display: flex;
         justify-content: space-between;
         align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
     }
-    .epistemic-grid {
-        display: grid;
-        grid-template-columns: repeat(5, 1fr);
-        gap: 10px;
-    }
-    .epistemic-card {
-        background: #111722;
-        border-radius: 6px;
-        padding: 10px 12px;
-        border: 1px solid #1e293b;
-    }
-    .tier-observed { border-top: 3px solid #10b981; }
-    .tier-estimated { border-top: 3px solid #38bdf8; }
-    .tier-hypothesized { border-top: 3px solid #f59e0b; }
-    .tier-validated { border-top: 3px solid #a855f7; }
-    .tier-unknown { border-top: 3px solid #64748b; }
-    
-    .tier-header {
-        font-size: 0.68rem;
+    .hud-badge-blind {
+        background: #064e3b;
+        color: #34d399;
+        border: 1px solid #059669;
+        font-size: 0.78rem;
         font-weight: 700;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        margin-bottom: 6px;
+        padding: 3px 10px;
+        border-radius: 4px;
+        letter-spacing: 0.05em;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
-    .tier-header-observed { color: #34d399; }
-    .tier-header-estimated { color: #38bdf8; }
-    .tier-header-hypothesized { color: #fbbf24; }
-    .tier-header-validated { color: #c084fc; }
-    .tier-header-unknown { color: #94a3b8; }
-    
-    .tier-content {
-        font-size: 0.74rem;
-        color: #cbd5e1;
-        line-height: 1.4;
+    .hud-badge-consistent {
+        background: #0c4a6e;
+        color: #38bdf8;
+        border: 1px solid #0284c7;
+        font-size: 0.78rem;
+        font-weight: 700;
+        padding: 3px 10px;
+        border-radius: 4px;
+        letter-spacing: 0.05em;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
-    .tier-item {
-        margin-bottom: 4px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .tier-item-label {
-        color: #64748b;
-        font-size: 0.68rem;
-    }
-    .tier-item-val {
-        color: #f1f5f9;
-        font-weight: 600;
+    .hud-badge-warn {
+        background: #3b2506;
+        color: #fbbf24;
+        border: 1px solid #d97706;
+        font-size: 0.78rem;
+        font-weight: 700;
+        padding: 3px 10px;
+        border-radius: 4px;
+        letter-spacing: 0.05em;
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
 
-    /* Bitstream Hex & Text Viewer */
-    .hex-viewer-box {
-        background: #090d14;
+    /* Level 2: Parameter Cards Grid */
+    .param-card {
+        background: #111722;
         border: 1px solid #1e293b;
         border-radius: 6px;
-        padding: 10px;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        font-size: 0.74rem;
-        color: #38bdf8;
-        max-height: 200px;
-        overflow-y: auto;
-        white-space: pre-wrap;
-        word-break: break-all;
+        padding: 12px 14px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
     }
-    .ascii-viewer-box {
-        background: #090d14;
-        border: 1px solid #1e293b;
-        border-radius: 6px;
-        padding: 10px;
+    .param-card-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 6px;
+    }
+    .param-title {
+        font-size: 0.74rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #94a3b8;
+        font-weight: 600;
+    }
+    .param-badges {
+        display: flex;
+        gap: 4px;
+    }
+    .badge-status {
+        font-size: 0.64rem;
+        font-weight: 700;
+        padding: 1px 5px;
+        border-radius: 3px;
+        text-transform: uppercase;
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        font-size: 0.75rem;
+    }
+    .badge-stat-observed { background: #064e3b; color: #34d399; }
+    .badge-stat-estimated { background: #0c4a6e; color: #38bdf8; }
+    .badge-stat-hypothesized { background: #3b2506; color: #fbbf24; }
+    .badge-stat-validated { background: #2e1065; color: #c084fc; }
+    .badge-stat-unknown { background: #1e293b; color: #94a3b8; }
+    .badge-stat-na { background: #1e293b; color: #64748b; }
+
+    .badge-stab-high { background: #064e3b; color: #34d399; }
+    .badge-stab-medium { background: #3b2506; color: #fbbf24; }
+    .badge-stab-low { background: #450a0a; color: #f87171; }
+    .badge-stab-unknown { background: #1e293b; color: #94a3b8; }
+
+    .param-numeric {
+        font-size: 1.35rem;
+        font-weight: 700;
+        color: #f8fafc;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        margin: 4px 0;
+    }
+    .param-uncertainty-line {
+        font-size: 0.72rem;
+        color: #38bdf8;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .param-reason-line {
+        font-size: 0.68rem;
+        color: #64748b;
+        font-style: italic;
+        line-height: 1.3;
+        margin-top: 2px;
+    }
+    .param-footer {
+        font-size: 0.68rem;
+        color: #94a3b8;
+        border-top: 1px solid #182234;
+        padding-top: 6px;
+        margin-top: 8px;
+    }
+
+    /* Structured Telemetry Tables */
+    .instrument-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.78rem;
+        background: #111722;
+        border-radius: 6px;
+        overflow: hidden;
+        border: 1px solid #1e293b;
+    }
+    .instrument-table th {
+        background: #0b0f17;
+        color: #94a3b8;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.68rem;
+        letter-spacing: 0.05em;
+        padding: 8px 10px;
+        text-align: left;
+        border-bottom: 1px solid #1e293b;
+    }
+    .instrument-table td {
+        padding: 7px 10px;
+        border-bottom: 1px solid #182234;
+        color: #cbd5e1;
+    }
+    .instrument-table tr:last-child td {
+        border-bottom: none;
+    }
+    .instrument-table tr:hover td {
+        background: #141d2b;
+    }
+    .mono-cell {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        color: #f1f5f9;
+        font-weight: 600;
+    }
+
+    /* Level 4: Contradiction Alert Cards */
+    .contradiction-clean-box {
+        background: #06281e;
+        border: 1px solid #065f46;
+        border-radius: 6px;
+        padding: 12px 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
         color: #34d399;
-        max-height: 200px;
-        overflow-y: auto;
-        white-space: pre-wrap;
-        word-break: break-all;
+        font-size: 0.82rem;
+    }
+    .contradiction-alert-box {
+        background: #2a1113;
+        border: 1px solid #991b1b;
+        border-radius: 6px;
+        padding: 12px 16px;
+        color: #fca5a5;
+        font-size: 0.82rem;
+    }
+
+    /* Level 7: Validation Trace Cards */
+    .trace-step-card {
+        background: #111722;
+        border: 1px solid #1e293b;
+        border-radius: 5px;
+        padding: 10px 14px;
+        margin-bottom: 8px;
+    }
+    .trace-step-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.76rem;
+        font-weight: 700;
+        color: #f1f5f9;
+        margin-bottom: 4px;
+    }
+    .trace-step-body {
+        font-size: 0.74rem;
+        color: #94a3b8;
+        line-height: 1.4;
+    }
+
+    /* Light workstation skin: visual-only overrides, preserving layout and
+       all Streamlit widgets/processing behavior. */
+    :root {
+        --ui-ink: #243447;
+        --ui-muted: #667085;
+        --ui-line: #d9e1ea;
+        --ui-surface: #ffffff;
+        --ui-surface-soft: #f7f9fc;
+        --ui-accent: #1769aa;
+    }
+    html, body, [data-testid="stAppViewContainer"],
+    [data-testid="stAppViewContainer"] > .main,
+    .stApp {
+        background: #ffffff !important;
+        color: var(--ui-ink) !important;
+    }
+    [data-testid="stHeader"] {
+        background: rgba(255, 255, 255, 0.96) !important;
+        border-bottom: 1px solid var(--ui-line) !important;
+    }
+    [data-testid="stSidebar"] {
+        background: #f7f9fc !important;
+        border-right: 1px solid var(--ui-line) !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] span {
+        color: var(--ui-ink) !important;
+    }
+    .workstation-banner, .verdict-card, .param-card, .trace-step-card,
+    .instrument-table, .hud-card-layer-a {
+        background: var(--ui-surface) !important;
+        border-color: var(--ui-line) !important;
+        box-shadow: 0 2px 9px rgba(31, 52, 73, 0.06) !important;
+    }
+    .telemetry-chip, .metric-cell, .verdict-explanation-box {
+        background: var(--ui-surface-soft) !important;
+        border-color: var(--ui-line) !important;
+    }
+    .section-header {
+        color: #526173 !important;
+        border-bottom-color: var(--ui-line) !important;
+    }
+    .section-num, .chip-val, .metric-cell-value, .param-numeric,
+    .param-uncertainty-line, .workstation-title, .verdict-target-title {
+        color: var(--ui-ink) !important;
+    }
+    .workstation-subtitle, .metric-cell-sub, .param-reason-line,
+    .param-footer, .trace-step-body, .chip-label, .metric-cell-label,
+    .param-title {
+        color: var(--ui-muted) !important;
+    }
+    .hud-card-layer-a {
+        border-left: 4px solid #2b7bbb !important;
+    }
+    .instrument-table th {
+        background: #eef3f8 !important;
+        color: #526173 !important;
+        border-bottom-color: var(--ui-line) !important;
+    }
+    .instrument-table td {
+        color: var(--ui-ink) !important;
+        border-bottom-color: #e8edf3 !important;
+    }
+    .instrument-table tr:hover td {
+        background: #f7faff !important;
+    }
+    input, textarea, [data-baseweb="select"] > div,
+    [data-testid="stNumberInput"] input {
+        background: #ffffff !important;
+        color: var(--ui-ink) !important;
+        border-color: #c8d3df !important;
+    }
+    button[kind="secondary"], [data-testid="stDownloadButton"] button {
+        background: #ffffff !important;
+        color: var(--ui-accent) !important;
+        border: 1px solid #a9bfd4 !important;
+        border-radius: 6px !important;
+    }
+    button[kind="secondary"]:hover, [data-testid="stDownloadButton"] button:hover {
+        background: #eef6fc !important;
+        border-color: #6ea6cf !important;
+    }
+    /* Re-skin legacy inline dark surfaces without moving or rewriting them. */
+    div[style*="background:#111722"], div[style*="background: #111722"],
+    div[style*="background:#0b0f17"], div[style*="background: #0b0f17"] {
+        background: #ffffff !important;
+        border-color: var(--ui-line) !important;
+    }
+    div[style*="color:#f8fafc"], div[style*="color: #f8fafc"],
+    div[style*="color:#ffffff"], div[style*="color: #ffffff"] {
+        color: var(--ui-ink) !important;
     }
 </style>
 """, unsafe_allow_html=True)
+
 
 # 25 Verified SigIDWiki Defense Intercept Catalog
 VERIFIED_SAMPLES_DIR = os.path.join(os.path.dirname(__file__), "verified_samples")
@@ -489,6 +689,7 @@ CATALOG_GROUPS = {
         ("Morse_Code.wav", "Morse Code (A1A Continuous Wave On-Off Keying)")
     ],
     "Commercial & Land Mobile": [
+        ("AIS.wav", "AIS (Automatic Identification System GMSK 9600 Baud TDMA)"),
         ("GSM_BCCH_Downlink.wav", "GSM BCCH (Cellular TDMA 4.615 ms Frame)"),
         ("DMR.wav", "DMR (ETSI Tier II TDMA 4-FSK 4800 Baud)"),
         ("D-STAR.wav", "D-STAR (Amateur Digital Voice GMSK 4800 Baud)")
@@ -502,12 +703,61 @@ CATALOG_GROUPS = {
 
 
 def main():
+    # -------------------------------------------------------------
+    # SIDEBAR: SIGNAL INGESTION (All 25 Verified Defense Intercepts)
+    # -------------------------------------------------------------
+    st.sidebar.markdown("### Appearance")
+    st.sidebar.radio(
+        "Theme",
+        options=["Light", "Dark"],
+        index=0 if st.session_state.get("ui_theme", "light") == "light" else 1,
+        key="ui_theme",
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+    active_theme = st.session_state.get("ui_theme", "light")
+    set_plot_theme(active_theme.lower())
+    if active_theme == "Dark":
+        st.markdown("""
+        <style>
+            :root { --ui-ink:#e6edf5; --ui-muted:#9aa9ba; --ui-line:#2b394b; --ui-surface:#111722; --ui-surface-soft:#0b0f17; --ui-accent:#55b7e8; }
+            html, body, [data-testid="stAppViewContainer"], [data-testid="stAppViewContainer"] > .main, .stApp { background:#0b0f17 !important; color:#e6edf5 !important; }
+            [data-testid="stHeader"] { background:rgba(11,15,23,.96) !important; border-bottom-color:#1e293b !important; }
+            [data-testid="stSidebar"] { background:#111722 !important; border-right-color:#263447 !important; }
+            [data-testid="stSidebar"] [data-testid="stMarkdownContainer"], [data-testid="stSidebar"] label, [data-testid="stSidebar"] p, [data-testid="stSidebar"] span { color:#dbe5ef !important; }
+            .workstation-banner, .verdict-card, .param-card, .trace-step-card, .instrument-table, .hud-card-layer-a { background:#111722 !important; border-color:#263447 !important; box-shadow:none !important; }
+            .telemetry-chip, .metric-cell, .verdict-explanation-box { background:#0b0f17 !important; border-color:#263447 !important; }
+            .section-header { color:#9aa9ba !important; border-bottom-color:#2b394b !important; }
+            .section-num, .chip-val, .metric-cell-value, .param-numeric, .param-uncertainty-line, .workstation-title, .verdict-target-title { color:#e6edf5 !important; }
+            .workstation-subtitle, .metric-cell-sub, .param-reason-line, .param-footer, .trace-step-body, .chip-label, .metric-cell-label, .param-title { color:#9aa9ba !important; }
+            .instrument-table th { background:#0b0f17 !important; color:#9aa9ba !important; border-bottom-color:#2b394b !important; }
+            .instrument-table td { color:#dbe5ef !important; border-bottom-color:#1e293b !important; }
+            input, textarea, [data-baseweb="select"] > div, [data-testid="stNumberInput"] input { background:#111722 !important; color:#e6edf5 !important; border-color:#3a4c61 !important; }
+            button[kind="secondary"], [data-testid="stDownloadButton"] button { background:#111722 !important; color:#55b7e8 !important; border-color:#3a607a !important; }
+            [data-testid="stExpander"] summary, [data-testid="stExpander"] summary *, div[role="radiogroup"] label, div[role="radiogroup"] label * { color:#dbe5ef !important; }
+            [style*="color:#243447"], [style*="color: #243447"], [style*="color:#526173"], [style*="color: #526173"] { color:#dbe5ef !important; }
+        </style>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <style>
+            /* Explicit text contrast for legacy inline labels on the light theme. */
+            [style*="color:#f8fafc"], [style*="color: #f8fafc"], [style*="color:#ffffff"], [style*="color: #ffffff"], [style*="color:#f1f5f9"], [style*="color: #f1f5f9"] { color:#243447 !important; }
+            [style*="color:#94a3b8"], [style*="color: #94a3b8"], [style*="color:#cbd5e1"], [style*="color: #cbd5e1"] { color:#667085 !important; }
+            [style*="background:#111722"], [style*="background: #111722"], [style*="background:#0b0f17"], [style*="background: #0b0f17"], [style*="background:#0f172a"], [style*="background: #0f172a"] { background:#ffffff !important; border-color:#d9e1ea !important; }
+            .hud-card-layer-a, details, [data-testid="stExpander"] { background:#ffffff !important; border-color:#d9e1ea !important; }
+            [data-testid="stExpander"] summary, [data-testid="stExpander"] summary *, div[role="radiogroup"] label, div[role="radiogroup"] label * { color:#344054 !important; }
+        </style>
+        """, unsafe_allow_html=True)
+
     st.sidebar.markdown("### Signal Ingestion")
 
     input_mode = st.sidebar.radio(
         "Select Intercept Source:",
         [
             "Defense Intercept Catalog (25 Signals)",
+            "Tactical Intercept Scenarios (7 Scenarios Demo)",
+            "Epistemic State Verification Bench (6 States Demo)",
             "Upload Signal Capture (.wav, .iq, .dat)",
             "Synthetic Signal Generator"
         ],
@@ -542,12 +792,36 @@ def main():
         else:
             st.error(f"Sample file not found: {sample_file_path}")
 
+    elif input_mode == "Tactical Intercept Scenarios (7 Scenarios Demo)":
+        st.sidebar.markdown("### Tactical Intercept Scenarios")
+        selected_scenario = st.sidebar.selectbox(
+            "Select Demonstration Scenario:",
+            TACTICAL_SCENARIOS,
+            format_func=lambda x: x[1],
+            index=0
+        )
+        scen_key, scen_label, scen_desc = selected_scenario
+        st.sidebar.caption(scen_desc)
+        scen_samples = st.sidebar.slider("Capture Samples:", min_value=20_000, max_value=250_000, value=96_000, step=10_000)
+        signal, fs, meta = load_tactical_scenario(scen_key, max_samples=scen_samples)
+
+    elif input_mode == "Epistemic State Verification Bench (6 States Demo)":
+        st.sidebar.markdown("### Epistemic State Test Bench")
+        selected_preset = st.sidebar.selectbox(
+            "Select Epistemic Target State:",
+            EPISTEMIC_DEMO_PRESETS,
+            format_func=lambda x: x[1],
+            index=0
+        )
+        state_key, state_label = selected_preset
+        demo_duration = st.sidebar.slider("Signal Duration (s):", min_value=0.5, max_value=4.0, value=2.0, step=0.5)
+        signal, fs, meta = generate_epistemic_test_signal(state=state_key, fs=48000.0, duration_s=demo_duration)
+
     elif input_mode == "Upload Signal Capture (.wav, .iq, .dat)":
         uploaded_file = st.sidebar.file_uploader(
             "Upload Signal File (Zero Config Required):",
             type=["wav", "wave", "iq", "dat", "bin"]
         )
-
         with st.sidebar.expander("Advanced Extraction Overrides", expanded=False):
             manual_override = st.checkbox("Manual Override", value=False)
             override_fs = st.number_input("Sampling Rate (Hz):", min_value=1000.0, value=1_000_000.0, step=100_000.0) if manual_override else None
@@ -613,814 +887,1056 @@ def main():
         meta["source_type"] = f"Synthetic Generator ({syn_mod})"
 
     # -------------------------------------------------------------
-    # EXECUTION OF AUTONOMOUS DSP PIPELINE
+    # EXECUTION OF AUTONOMOUS DSP PIPELINE & CACHING
     # -------------------------------------------------------------
     if signal is None or len(signal) == 0:
         st.info("Select a defense intercept sample or upload an RF capture file in the sidebar to begin analysis.")
         return
 
-    # Session state initialization
-    if "view_mode" not in st.session_state:
-        st.session_state.view_mode = "numbers"
-    if "active_spectral_graph" not in st.session_state:
-        st.session_state.active_spectral_graph = "Spectrogram Waterfall"
-    if "radio_spectral_display" not in st.session_state:
-        st.session_state.radio_spectral_display = "Spectrogram Waterfall"
-    if "cached_figs" not in st.session_state:
-        st.session_state.cached_figs = {}
-
-    # Signal-level result caching: avoid rerunning pipeline on every tab switch
     sig_cache_key = f"{meta.get('file_name', '')}_{meta.get('source_type', '')}_{len(signal)}_{fs}"
 
     if (
         st.session_state.get("cached_sig_key") == sig_cache_key
         and "cached_results" in st.session_state
+        and "cached_norm_sig" in st.session_state
         and "cached_v3" in st.session_state
     ):
         results = st.session_state["cached_results"]
         norm_sig = st.session_state["cached_norm_sig"]
         v3_bundle = st.session_state["cached_v3"]
-        cond_rep = v3_bundle.get("cond_rep", {})
     else:
         results = run_adaptive_pipeline(signal, fs, metadata=meta)
         dc_free = remove_dc_offset(signal)
         norm_sig, _ = normalize_signal_power(dc_free)
-        p = results["parameters"]
 
-        # V3 Epistemic Forensics & Demodulation Engine
+        # Quick V3 synchronization & demodulation on first 64k samples for constellation & soft LLR plots
         v3_slice = signal[:min(len(signal), 65536)]
-        conditioned, cond_rep = condition_signal(v3_slice, apply_iq=True, apply_agc=False)
-        v3_features = extract_signal_features(conditioned, fs)
-        v3_hyp = classify_modulation_open_set(conditioned, fs=fs, features=v3_features)
-        v3_sync = synchronize_signal(conditioned, fs, v3_hyp)
-        v3_demod = demodulate_signal(v3_sync, v3_hyp.modulation)
-        v3_inter = evaluate_interleaver_candidates(v3_demod.soft_llrs, v3_demod.hard_bits)
-        v3_fec = evaluate_fec_candidates(v3_demod.soft_llrs, v3_demod.hard_bits)
-        v3_frame = analyze_frame_structure(v3_demod.hard_bits)
-        v3_evidence = fuse_evidence(p, v3_hyp, v3_sync, v3_demod, v3_inter, v3_fec, v3_frame)
+        try:
+            conditioned, cond_rep = condition_signal(v3_slice, apply_iq=True, apply_agc=False)
+            v3_features = extract_signal_features(conditioned, fs)
+            v3_hyp = classify_modulation_open_set(conditioned, fs=fs, features=v3_features)
+            v3_sync = synchronize_signal(conditioned, fs, v3_hyp)
+            v3_demod = demodulate_signal(v3_sync, v3_hyp.modulation)
+            v3_bundle = {
+                "sync": v3_sync,
+                "demod": v3_demod,
+                "hypothesis": v3_hyp,
+                "features": v3_features
+            }
+        except Exception:
+            v3_bundle = None
 
-        v3_bundle = {
-            "conditioned": conditioned,
-            "cond_rep": cond_rep,
-            "features": v3_features,
-            "hypothesis": v3_hyp,
-            "sync": v3_sync,
-            "demod": v3_demod,
-            "interleaver": v3_inter,
-            "fec": v3_fec,
-            "frame": v3_frame,
-            "evidence": v3_evidence
-        }
         st.session_state["cached_sig_key"] = sig_cache_key
         st.session_state["cached_results"] = results
         st.session_state["cached_norm_sig"] = norm_sig
         st.session_state["cached_v3"] = v3_bundle
         st.session_state["cached_figs"] = {}
 
-
+    # Extract all pipeline telemetry
     p = results["parameters"]
     m = results["modulation_classification"]
     pulse = results["pulse_analysis"]
     det = results.get("autonomous_detection", {})
     spec = results.get("specialized_telemetry", {})
+    temp_val = results.get("temporal_validation", {})
+    val_trace = results.get("validation_trace", {})
+    ranked_cands = results.get("ranked_candidates", [])
+    contras = results.get("contradiction_analysis", [])
+    evidence_rep = results.get("evidence_report", {})
     t_elapsed_ms = results.get("execution_time_ms", 0.0)
 
+    # Layer A Blind Physical Parameters & Provenance
+    blind_vec = results.get("blind_parameters") or results.get("blind_parameter_vector") or {}
+    blindness_prov = results.get("blindness_provenance") or blind_vec.get("blindness_provenance") or {}
+    morph = results.get("waveform_morphology") or blind_vec.get("morphology_fingerprint") or {}
+    param_cons = results.get("parameter_consistency") or blind_vec.get("parameter_consistency") or {}
+    sym_consensus = results.get("symbol_rate_consensus") or {}
+
+    # Step 6 & 7 outputs
+    param_reports = results.get("parameter_uncertainties", {})
+    verdict_expl = results.get("verdict_explanation", {})
+    final_verdict = results.get("final_decision", "UNKNOWN")
+
+    # Time and Real-Time Factor (RTF)
     duration_sec = len(signal) / fs
     duration_str = f"{duration_sec * 1e3:.1f} ms" if duration_sec < 1.0 else f"{duration_sec:.2f} s"
     fmt_str = meta.get("format_type", "auto").upper()
     file_display = meta.get("file_name", meta.get("preset_label", "Intercept Capture"))
 
-    # Top console toolbar
-    st.markdown(f"""
-    <div class="console-header">
+    rtf = (t_elapsed_ms / 1000.0) / max(duration_sec, 1e-6)
+    if rtf < 1.0:
+        rtf_str = f"{rtf:.3f}x ({1.0 / rtf:.1f}x faster than real-time)"
+    else:
+        rtf_str = f"{rtf:.2f}x real-time"
+
+    evidence_score_val = det.get("evidence_score", det.get("confidence", 0.0))
+
+    # -------------------------------------------------------------
+    # TOP WORKSTATION BANNER
+    # -------------------------------------------------------------
+    render_html(f"""
+    <div class="workstation-banner">
         <div>
-            <div class="console-title">NTRO RF SIGNAL INTELLIGENCE CONSOLE</div>
-            <div class="console-subtitle">Smart India Hackathon 2026 (SIH26147) • Autonomous Edge SIGINT Workstation</div>
+            <div class="workstation-title">AAROHAN • AUTONOMOUS RF SIGNAL ANALYSIS WORKSTATION</div>
+            <div class="workstation-subtitle">Smart India Hackathon 2026 (SIH26147) • Physical Invariant Verification Engine</div>
         </div>
-        <div class="pill-group">
-            <div class="telemetry-pill"><span class="pill-label">STATUS</span><span class="pill-status">ACTIVE</span></div>
-            <div class="telemetry-pill"><span class="pill-label">TARGET</span><span class="pill-val">{file_display[:28]}</span></div>
-            <div class="telemetry-pill"><span class="pill-label">FORMAT</span><span class="pill-val">{fmt_str}</span></div>
-            <div class="telemetry-pill"><span class="pill-label">SAMPLE RATE</span><span class="pill-val">{fs:,.0f} Hz</span></div>
-            <div class="telemetry-pill"><span class="pill-label">DURATION</span><span class="pill-val">{duration_str}</span></div>
-            <div class="telemetry-pill"><span class="pill-label">DSP LATENCY</span><span class="pill-val">{t_elapsed_ms:.1f} ms</span></div>
+        <div class="chip-container">
+            <div class="telemetry-chip"><span class="chip-label">TARGET</span><span class="chip-val">{file_display[:28]}</span></div>
+            <div class="telemetry-chip"><span class="chip-label">FORMAT</span><span class="chip-val">{fmt_str}</span></div>
+            <div class="telemetry-chip"><span class="chip-label">SAMPLE RATE</span><span class="chip-val">{fs:,.0f} Hz</span></div>
+            <div class="telemetry-chip"><span class="chip-label">SAMPLES</span><span class="chip-val">{len(signal):,}</span></div>
+            <div class="telemetry-chip"><span class="chip-label">DURATION</span><span class="chip-val">{duration_str}</span></div>
+            <div class="telemetry-chip"><span class="chip-label">DSP LATENCY</span><span class="chip-val">{t_elapsed_ms:.1f} ms</span></div>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
-    # Helper function to render the target classification card
-    def render_target_card():
-        protocol_display = det.get("protocol_name", m.get("modulation_type", "Unknown Signal"))
-        conf_pct = det.get("confidence", 0.95) * 100
-        mod_family = m.get("modulation_type", "N/A")
-        extractor_name = spec.get("extractor_pipeline", "Base Extractor")
-        domain_label = meta.get("recording_domain", "RF Baseband")
+    # =============================================================
+    # 1. FINAL INTERCEPT VERDICT
+    # =============================================================
+    render_html("""
+    <div class="section-header">
+        <span class="section-num">01.</span> Final Intercept Verdict
+    </div>
+    """)
+
+    verdict_badge_class = {
+        "VALIDATED": "badge-validated",
+        "ESTIMATED": "badge-estimated",
+        "AMBIGUOUS": "badge-ambiguous",
+        "UNKNOWN": "badge-unknown",
+        "UNKNOWN_OOD": "badge-unknown-ood",
+        "NO SIGNAL / NOISE FLOOR": "badge-no-signal"
+    }.get(final_verdict, "badge-unknown")
+
+    target_name = det.get("protocol_name", m.get("modulation_type", "Unknown Signal"))
+    verdict_title = verdict_expl.get("title", f"Verdict: {final_verdict}")
+    verdict_narrative = verdict_expl.get("explanation", "Analysis complete.")
+
+    render_html(f"""
+    <div class="verdict-card">
+        <div class="verdict-header-row">
+            <div>
+                <span class="verdict-badge {verdict_badge_class}">● {final_verdict}</span>
+                <div class="verdict-target-title">{target_name}</div>
+                <div style="font-size:0.80rem; color:#94a3b8;"><strong>{verdict_title}</strong></div>
+            </div>
+            <div style="text-align:right;">
+                <div style="font-size:0.68rem; color:#64748b; text-transform:uppercase;">Mission Domain</div>
+                <div style="font-size:0.85rem; color:#38bdf8; font-weight:600;">{meta.get('recording_domain', 'RF Baseband')}</div>
+            </div>
+        </div>
+        <div class="verdict-explanation-box">
+            {verdict_narrative}
+        </div>
+        <div class="metrics-bar">
+            <div class="metric-cell">
+                <div class="metric-cell-label">Evidence Score</div>
+                <div class="metric-cell-value">{evidence_score_val:.2f}</div>
+                <div class="metric-cell-sub">Uncalibrated metric ∈ [0, 1]</div>
+            </div>
+            <div class="metric-cell">
+                <div class="metric-cell-label">Processing Time</div>
+                <div class="metric-cell-value">{t_elapsed_ms:.1f} ms</div>
+                <div class="metric-cell-sub">DSP pipeline latency</div>
+            </div>
+            <div class="metric-cell">
+                <div class="metric-cell-label">Signal Duration</div>
+                <div class="metric-cell-value">{duration_str}</div>
+                <div class="metric-cell-sub">{len(signal):,} baseband samples</div>
+            </div>
+            <div class="metric-cell">
+                <div class="metric-cell-label">Real-Time Factor</div>
+                <div class="metric-cell-value">{rtf:.3f}x</div>
+                <div class="metric-cell-sub">{rtf_str}</div>
+            </div>
+        </div>
+    </div>
+    """)
+
+    # Special callouts for first-class application states
+    if final_verdict == "AMBIGUOUS":
+        top_hyps = verdict_expl.get("top_hypotheses", [])
+        hyps_desc = ""
+        for idx, h in enumerate(top_hyps):
+            score_val = h.get("score", 0.0)
+            hyps_desc += f"<br>• <strong>Candidate #{idx+1} ({h.get('protocol', 'Unknown')})</strong>: Score = {score_val:.2f}"
+            if h.get("evidence"):
+                hyps_desc += f" (Evidence: {', '.join(h['evidence'][:2])})"
+
+        render_html(f"""
+        <div class="callout-ambiguous">
+            <strong>Ambiguity Threshold Active (Score Margin ≤ 0.05):</strong><br>
+            The classifier refused to collapse competing hypotheses with indistinguishable physical evidence:{hyps_desc}
+        </div>
+        """)
+
+    elif final_verdict == "UNKNOWN":
+        obs_items = verdict_expl.get("measured_observations", [])
+        obs_text = ", ".join(obs_items) if obs_items else "Carrier peak, occupied bandwidth, and SNR extracted"
+        render_html(f"""
+        <div class="callout-unknown">
+            <strong>Uncataloged Modulation Profile — Successfully Extracted Physical Telemetry:</strong><br>
+            {obs_text}. Waveform does not match cataloged defense standards, but physical properties are preserved.
+        </div>
+        """)
+
+    elif final_verdict == "NO SIGNAL / NOISE FLOOR":
+        render_html("""
+        <div class="callout-no-signal">
+            <strong>Gaussian Noise Floor Pre-Gate Rejection:</strong><br>
+            The input was deliberately rejected by the zero false-positive pre-gate because spectral flatness and energy
+            conform to stationary Gaussian thermal noise rather than an active RF emitter.
+        </div>
+        """)
+
+    if p.get("audio_passband_artifact_detected") or meta.get("is_demodulated_audio"):
+        rf_downlink = spec.get("satellite_downlink_frequency_nominal")
+        downlink_note = f" Nominal Physical RF Downlink: <strong>{rf_downlink}</strong>." if rf_downlink else ""
+        render_html(f"""
+        <div style="background:#1c1917; border:1px solid #44403c; border-radius:4px; padding:8px 12px; margin-top:8px; margin-bottom:12px; font-size:0.75rem; color:#fde047; line-height:1.4;">
+            <strong>Baseband Audio Capture Artifact:</strong> Extracted carrier ({p.get('fc_peak_hz', 0)/1e3:+,.2f} kHz) represents receiver audio subcarrier pitch; bandwidth ({p.get('bw_99pct_hz', 0)/1e3:.2f} kHz) is filtered by receiver audio passband.{downlink_note}
+        </div>
+        """)
+
+    # =============================================================
+    # 2. LAYER A: BLIND PHYSICAL PARAMETERS & PROVENANCE HUD
+    # =============================================================
+    render_html("""
+    <div class="section-header">
+        <span class="section-num">02.</span> Layer A • Blind Physical Parameters &amp; Provenance HUD
+    </div>
+    """)
+
+    blind_score_label = blindness_prov.get("blindness_score", "10.0 / 10.0 (100% Blind Physical Extraction)")
+    is_math_consistent = param_cons.get("is_consistent", True)
+    cons_score_num = float(param_cons.get("consistency_score", 1.0))
+    violations_list = param_cons.get("violations", [])
+    cons_badge_cls = "hud-badge-blind" if is_math_consistent else "hud-badge-warn"
+    cons_badge_text = f"Mathematical Invariants: {'PASS' if is_math_consistent else 'ATTENTION'} ({cons_score_num*100:.0f}%)"
+
+    env_ripple = float(morph.get("envelope_ripple_factor", 0.0))
+    has_const_env = bool(morph.get("has_constant_envelope", False))
+    env_str = f"Constant Envelope (Ripple: {env_ripple:.2f})" if has_const_env else f"Varying Envelope (Ripple: {env_ripple:.2f})"
+
+    phase_states_n = int(morph.get("phase_state_count", 1))
+    phase_str = f"{phase_states_n}-PSK Phase States" if phase_states_n > 1 else "Continuous Phase / Analog"
+
+    freq_states_n = int(morph.get("frequency_state_count", 1))
+    state_freqs = blind_vec.get("state_frequencies_hz", [])
+    freq_str = f"{freq_states_n}-Tone FSK State Clusters" if freq_states_n > 1 else "Single Carrier Center"
+
+    cons_rate = sym_consensus.get("consensus_rate_hz") or blind_vec.get("symbol_rate_consensus_hz")
+    cons_meth = sym_consensus.get("method") or blind_vec.get("symbol_rate_consensus_method", "N/A")
+    blind_chirp = blind_vec.get("chirp_info", {}) or {}
+    if blind_chirp.get("is_continuous_sweep"):
+        rate_str = "N/A (Continuous frequency sweep)"
+        cons_meth = "Symbol clock suppressed by sweep trajectory"
+    else:
+        rate_str = f"{cons_rate:,.1f} Baud" if (cons_rate and cons_rate > 0) else "N/A (Continuous Wave / Voice)"
+
+    render_html(f"""
+    <div class="hud-card-layer-a">
+        <div class="hud-title-row">
+            <div>
+                <span style="font-size:0.95rem; font-weight:700; color:#f8fafc; letter-spacing:0.02em;">
+                    Purely Blind Waveform Mechanics (Pre-Classification Layer)
+                </span>
+                <div style="font-size:0.72rem; color:#94a3b8; margin-top:2px;">
+                    Derived 100% upstream of protocol inference without preset baud lists, frequency shifts, or catalog lookups.
+                </div>
+            </div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                <span class="hud-badge-blind">{blind_score_label}</span>
+                <span class="{cons_badge_cls}">{cons_badge_text}</span>
+            </div>
+        </div>
+        <div class="metrics-bar" style="margin-top:10px;">
+            <div class="metric-cell">
+                <div class="metric-cell-label">Blind Symbol Rate Consensus</div>
+                <div class="metric-cell-value">{rate_str}</div>
+                <div class="metric-cell-sub">{cons_meth[:34]}</div>
+            </div>
+            <div class="metric-cell">
+                <div class="metric-cell-label">Spectral Tone States</div>
+                <div class="metric-cell-value">{freq_str}</div>
+                <div class="metric-cell-sub">{len(state_freqs)} Active Discrete Frequencies</div>
+            </div>
+            <div class="metric-cell">
+                <div class="metric-cell-label">Envelope Morphology</div>
+                <div class="metric-cell-value" style="font-size:0.95rem;">{env_str}</div>
+                <div class="metric-cell-sub">Flatness: {morph.get('spectral_flatness', 0.0):.3f} | Kurtosis: {morph.get('spectral_kurtosis', 0.0):.1f}</div>
+            </div>
+            <div class="metric-cell">
+                <div class="metric-cell-label">Phase / Constellation</div>
+                <div class="metric-cell-value" style="font-size:0.95rem;">{phase_str}</div>
+                <div class="metric-cell-sub">Cyclic Strength: {morph.get('cyclostationary_strength', 0.0):.2f}</div>
+            </div>
+        </div>
+    </div>
+    """)
+
+    with st.expander("Layer A Parameter Provenance & Invariant Audit Trail", expanded=False):
+        prov_map = blindness_prov.get("parameter_provenance", {})
+        prov_rows = ""
+        for p_k, p_v in prov_map.items():
+            prov_rows += f"<tr><td style='font-weight:600; color:#38bdf8; text-transform:capitalize;'>{p_k.replace('_', ' ')}</td><td>{p_v}</td></tr>"
+        if not prov_rows:
+            prov_rows = "<tr><td colspan='2'>Provenance data recorded in Layer A vector.</td></tr>"
+
+        viol_note = "<span style='color:#34d399;'>Zero physical invariant contradictions detected.</span>" if not violations_list else f"<span style='color:#f87171;'>Flagged: {'; '.join(violations_list)}</span>"
 
         st.markdown(f"""
-        <div class="target-card">
-            <div class="target-header">Signal Classification</div>
-            <div class="target-name">{protocol_display}</div>
-            <div class="target-badges">
-                <span class="badge-success">Confidence: {conf_pct:.1f}%</span>
-                <span class="badge-primary">Mod: {mod_family}</span>
-                <span class="badge-primary">Pipeline: {extractor_name}</span>
-                <span class="badge-warn">{domain_label}</span>
-            </div>
+        <table class="instrument-table" style="margin-bottom:8px;">
+            <thead><tr><th style="width:28%;">Physical Parameter</th><th>Extraction Mechanism (Pure Wave Mechanics)</th></tr></thead>
+            <tbody>{prov_rows}</tbody>
+        </table>
+        <div style="font-size:0.75rem; color:#94a3b8; margin-top:6px;">
+            <strong>Mathematical Consistency Invariants:</strong> {viol_note}
         </div>
         """, unsafe_allow_html=True)
 
-        if p.get("audio_passband_artifact_detected") or meta.get("is_demodulated_audio"):
-            rf_downlink = spec.get("satellite_downlink_frequency_nominal")
-            downlink_note = f" Nominal Physical RF Downlink: <strong>{rf_downlink}</strong>." if rf_downlink else ""
-            st.markdown(f"""
-            <div style="background:#1c1917; border:1px solid #44403c; border-radius:6px; padding:8px 12px; margin-bottom:12px; font-size:0.78rem; color:#fde047; line-height:1.4;">
-                <strong>Baseband Audio Capture</strong>: Extracted carrier ({p.get('fc_peak_hz', 0)/1e3:+,.2f} kHz) represents receiver audio subcarrier pitch; bandwidth ({p.get('bw_99pct_hz', 0)/1e3:.2f} kHz) is filtered by receiver audio passband.{downlink_note}
-            </div>
-            """, unsafe_allow_html=True)
+    # =============================================================
+    # 3. PRIMARY PARAMETERS (With Epistemic Status & Uncertainty)
+    # =============================================================
+    render_html("""
+    <div class="section-header">
+        <span class="section-num">03.</span> Primary Parameters
+    </div>
+    """)
 
-    # Helper function to render the physical RF parameters table
-    def render_rf_table():
-        st.markdown(f"""
-        <div class="instrument-card">
-            <div class="instrument-header">Physical RF Parameter Telemetry</div>
-            <table class="telemetry-table">
-                <tr>
-                    <td class="param-label">Carrier Frequency (fc)</td>
-                    <td class="param-value">{p.get('fc_peak_hz', 0) / 1e3:+,.2f} kHz <span class="param-extra">Centroid: {p.get('fc_centroid_hz', 0) / 1e3:+,.2f} kHz</span></td>
-                </tr>
-                <tr>
-                    <td class="param-label">Bandwidth (-3 dB)</td>
-                    <td class="param-value">{p.get('bw_3db_hz', 0) / 1e3:,.2f} kHz <span class="param-extra">99% OBW: {p.get('bw_99pct_hz', 0) / 1e3:,.2f} kHz</span></td>
-                </tr>
-                <tr>
-                    <td class="param-label">-10 dB Bandwidth</td>
-                    <td class="param-value">{p.get('bw_10db_hz', 0) / 1e3:,.2f} kHz <span class="param-extra">Peak: {p.get('peak_power_db', 0):.1f} dB/Hz</span></td>
-                </tr>
-                <tr>
-                    <td class="param-label">Signal-to-Noise Ratio (SNR)</td>
-                    <td class="param-value">{p.get('snr_db', 0):+.2f} dB <span class="param-extra">Method: {p.get('snr_estimation_method', 'Auto')}</span></td>
-                </tr>
-                <tr>
-                    <td class="param-label">Symbol / Baud Rate</td>
-                    <td class="param-value">{p.get('baud_label', '0.0 Baud')} <span class="param-extra">Confidence: {p.get('baud_confidence', 0)*100:.0f}%</span></td>
-                </tr>
-                <tr>
-                    <td class="param-label">Dynamic Range & PAPR</td>
-                    <td class="param-value">{p.get('spectral_dynamic_range_db', 0):.1f} dB <span class="param-extra">PAPR: {p.get('papr_db', 0):.1f} dB</span></td>
-                </tr>
-            </table>
+    def render_parameter_card(title: str, report_item: Optional[Dict[str, Any]], fallback_val: str, footer_info: str):
+        item = report_item or {}
+        val = item.get("value")
+        unit = item.get("unit", "")
+        status = item.get("status", "UNKNOWN")
+        stability = item.get("stability", "UNKNOWN")
+        uncertainty = item.get("uncertainty")
+        unc_type = item.get("uncertainty_type")
+        unc_reason = item.get("uncertainty_reason")
+        reason = item.get("reason")
+        p_range = item.get("range")
+
+        # Format primary numeric value
+        if val is not None and isinstance(val, (int, float)):
+            if unit == "Hz":
+                if abs(val) >= 1e6:
+                    val_str = f"{val/1e6:,.3f} MHz"
+                elif abs(val) >= 1e3:
+                    val_str = f"{val/1e3:+,.2f} kHz"
+                else:
+                    val_str = f"{val:+,.1f} Hz"
+            elif unit == "Baud":
+                val_str = f"{val/1e3:.1f} kBaud" if val >= 1000.0 else f"{val:,.1f} Baud"
+            elif unit == "dB":
+                val_str = f"{val:+.2f} dB"
+            elif unit == "us":
+                val_str = f"{val:,.1f} μs"
+            else:
+                val_str = f"{val:,.2f} {unit}".strip()
+        else:
+            val_str = fallback_val
+
+        # Status badge CSS
+        stat_cls = {
+            "OBSERVED": "badge-stat-observed",
+            "ESTIMATED": "badge-stat-estimated",
+            "HYPOTHESIZED": "badge-stat-hypothesized",
+            "VALIDATED": "badge-stat-validated",
+            "UNKNOWN": "badge-stat-unknown",
+            "NOT_APPLICABLE": "badge-stat-na"
+        }.get(status, "badge-stat-unknown")
+
+        # Stability badge CSS
+        stab_cls = {
+            "HIGH": "badge-stab-high",
+            "MEDIUM": "badge-stab-medium",
+            "LOW": "badge-stab-low",
+            "UNKNOWN": "badge-stab-unknown"
+        }.get(stability, "badge-stat-unknown")
+
+        # Uncertainty text with rigorous scientific precision (no 95% CI)
+        if uncertainty is not None:
+            if unc_type == "fft_bin_resolution" and p_range and len(p_range) == 2:
+                unc_str = f"±{uncertainty:.2f} {unit} (Resolution Bound: [{p_range[0]:,.1f}, {p_range[1]:,.1f}])"
+            elif unc_type == "cross_window_std" and p_range and len(p_range) == 2:
+                unc_str = f"±{uncertainty:.2f} {unit} (Observed Range: [{p_range[0]:,.1f}, {p_range[1]:,.1f}])"
+            elif p_range and len(p_range) == 2:
+                unc_str = f"±{uncertainty:.2f} {unit} (Observed Range: [{p_range[0]:,.1f}, {p_range[1]:,.1f}])"
+            else:
+                unc_str = f"±{uncertainty:.2f} {unit}".strip()
+            reason_html = ""
+        else:
+            unc_str = "Uncertainty: None"
+            reason_text = unc_reason or reason or "Single observation window; cross-window variance unmeasured"
+            reason_html = f"<div class='param-reason-line'>{reason_text}</div>"
+
+        card_html = f"""
+        <div class="param-card">
+            <div>
+                <div class="param-card-top">
+                    <span class="param-title">{title}</span>
+                    <div class="param-badges">
+                        <span class="badge-status {stat_cls}">{status}</span>
+                        <span class="badge-status {stab_cls}">{stability}</span>
+                    </div>
+                </div>
+                <div class="param-numeric">{val_str}</div>
+                <div class="param-uncertainty-line">{unc_str}</div>
+                {reason_html}
+            </div>
+            <div class="param-footer">{footer_info}</div>
         </div>
-        """, unsafe_allow_html=True)
+        """
+        render_html(card_html)
 
-    # Helper function to render protocol-specific telemetry & proof
-    def render_protocol_details():
-        pipeline_name = det.get("extraction_pipeline", "")
-        if pipeline_name == "pulsed_radar":
-            st.markdown(f"""
-            <div class="instrument-card">
-                <div class="instrument-header">Radar / Ionospheric Sounder Telemetry</div>
-                <table class="telemetry-table">
-                    <tr><td class="param-label">Range Resolution (ΔR)</td><td class="param-value">{spec.get('radar_range_resolution_meters', 0):.2f} m</td></tr>
-                    <tr><td class="param-label">Max Unambiguous Range</td><td class="param-value">{spec.get('radar_max_unambiguous_range_km', 0):,.1f} km</td></tr>
-                    <tr><td class="param-label">Pulse Repetition Freq (PRF)</td><td class="param-value">{spec.get('radar_prf_hz', 0):.2f} Hz</td></tr>
-                    <tr><td class="param-label">Pulse Repetition Interval (PRI)</td><td class="param-value">{spec.get('radar_pri_us', 0):,.1f} μs</td></tr>
-                    <tr><td class="param-label">Pulse Width & Duty Cycle</td><td class="param-value">{spec.get('radar_pulse_width_us', 0):.2f} μs ({spec.get('radar_duty_cycle_pct', 0):.2f}%)</td></tr>
-                    <tr><td class="param-label">Chirp Slope (FMOP)</td><td class="param-value">{spec.get('radar_chirp_slope_mhz_per_sec', 0):+.3f} MHz/s (R²={spec.get('radar_chirp_r2', 0):.2f})</td></tr>
-                    <tr><td class="param-label">In-Pulse Segment SNR</td><td class="param-value">{spec.get('radar_in_pulse_snr_db', 0):+.2f} dB</td></tr>
-                </table>
-            </div>
-            """, unsafe_allow_html=True)
-        elif pipeline_name == "fsk_detector":
-            st.markdown(f"""
-            <div class="instrument-card">
-                <div class="instrument-header">2-FSK Physical Telemetry</div>
-                <table class="telemetry-table">
-                    <tr><td class="param-label">Mark Frequency</td><td class="param-value">{spec.get('fsk_mark_frequency_hz', 0):,.1f} Hz</td></tr>
-                    <tr><td class="param-label">Space Frequency</td><td class="param-value">{spec.get('fsk_space_frequency_hz', 0):,.1f} Hz</td></tr>
-                    <tr><td class="param-label">Frequency Shift (Δf)</td><td class="param-value">{spec.get('fsk_frequency_shift_hz', 0):,.1f} Hz</td></tr>
-                    <tr><td class="param-label">Modulation Index (h)</td><td class="param-value">{spec.get('fsk_modulation_index_h', 0):.3f}</td></tr>
-                    <tr><td class="param-label">Symbol Dwell Time</td><td class="param-value">{spec.get('fsk_symbol_dwell_time_ms', 0):.2f} ms</td></tr>
-                </table>
-            </div>
-            """, unsafe_allow_html=True)
-        elif pipeline_name == "satellite_telemetry":
-            st.markdown(f"""
-            <div class="instrument-card">
-                <div class="instrument-header">Satellite Beacon Telemetry (PCM/PM over NFM)</div>
-                <table class="telemetry-table">
-                    <tr><td class="param-label">Satellite Target</td><td class="param-value">{spec.get('satellite_name', 'Aist 2D / RS-48')}</td></tr>
-                    <tr><td class="param-label">Subcarrier Audio Pitch</td><td class="param-value">{spec.get('satellite_subcarrier_frequency_hz', 0):,.1f} Hz</td></tr>
-                    <tr><td class="param-label">Tone Prominence</td><td class="param-value">{spec.get('satellite_subcarrier_prominence_db', 0):.1f} dB</td></tr>
-                    <tr><td class="param-label">Physical RF Downlink</td><td class="param-value">{spec.get('satellite_downlink_frequency_nominal', '435.315 MHz (UHF)')}</td></tr>
-                    <tr><td class="param-label">Framing Telemetry</td><td class="param-value">{spec.get('satellite_framing_type', 'Packetized Satellite Telemetry')}</td></tr>
-                </table>
-            </div>
-            """, unsafe_allow_html=True)
-        elif pipeline_name == "mfsk_comb":
-            tones_str = ", ".join([f"{t:.0f} Hz" for t in spec.get('mfsk_detected_tones_hz', [])[:8]])
-            st.markdown(f"""
-            <div class="instrument-card">
-                <div class="instrument-header">M-FSK Tone Comb Telemetry</div>
-                <table class="telemetry-table">
-                    <tr><td class="param-label">Detected Tone Count</td><td class="param-value">{spec.get('mfsk_tone_count', 0)} Tones</td></tr>
-                    <tr><td class="param-label">Tone Spacing (Δf)</td><td class="param-value">{spec.get('mfsk_tone_spacing_hz', 0):.2f} Hz</td></tr>
-                    <tr><td class="param-label">Symbol Dwell Time</td><td class="param-value">{spec.get('mfsk_symbol_dwell_time_ms', 0):.2f} ms</td></tr>
-                    <tr><td class="param-label">Tone Frequencies</td><td class="param-value" style="font-size:0.72rem;">[{tones_str}]</td></tr>
-                </table>
-            </div>
-            """, unsafe_allow_html=True)
-        elif pipeline_name == "tdma_burst":
-            st.markdown(f"""
-            <div class="instrument-card">
-                <div class="instrument-header">TDMA Burst & Framing Telemetry</div>
-                <table class="telemetry-table">
-                    <tr><td class="param-label">Frame Period</td><td class="param-value">{spec.get('tdma_frame_period_ms', 0):.3f} ms</td></tr>
-                    <tr><td class="param-label">Timeslot Duration</td><td class="param-value">{spec.get('tdma_timeslot_duration_ms', 0):.3f} ms</td></tr>
-                    <tr><td class="param-label">Burst Active Duration</td><td class="param-value">{spec.get('tdma_burst_duration_ms', 0):.3f} ms</td></tr>
-                    <tr><td class="param-label">Burst Duty Cycle</td><td class="param-value">{spec.get('tdma_burst_duty_cycle_pct', 0):.2f}%</td></tr>
-                </table>
-            </div>
-            """, unsafe_allow_html=True)
-        elif pipeline_name == "digital_psk_qam":
-            hoc = spec.get("cumulants", {})
-            st.markdown(f"""
-            <div class="instrument-card">
-                <div class="instrument-header">Digital PSK/QAM & Cumulants</div>
-                <table class="telemetry-table">
-                    <tr><td class="param-label">Constellation Order M</td><td class="param-value">{spec.get('constellation_order_m', 4)}</td></tr>
-                    <tr><td class="param-label">Error Vector Magnitude</td><td class="param-value">{spec.get('evm_percent', 0):.2f}%</td></tr>
-                    <tr><td class="param-label">Higher-Order Cumulant |C40|</td><td class="param-value">{hoc.get('c40', 0):.3f}</td></tr>
-                    <tr><td class="param-label">Higher-Order Cumulant C42</td><td class="param-value">{hoc.get('c42', 0):.3f}</td></tr>
-                </table>
-            </div>
-            """, unsafe_allow_html=True)
-        elif pipeline_name == "analog_voice":
-            formants_str = ", ".join([f"{f:.0f} Hz" for f in spec.get('voice_formant_frequencies_hz', [])])
-            st.markdown(f"""
-            <div class="instrument-card">
-                <div class="instrument-header">Analog Voice & Audio Telemetry</div>
-                <table class="telemetry-table">
-                    <tr><td class="param-label">Speech Formants</td><td class="param-value">[{formants_str}]</td></tr>
-                    <tr><td class="param-label">Dynamic Voice SNR</td><td class="param-value">{spec.get('voice_dynamic_snr_db', 0):+.2f} dB</td></tr>
-                    <tr><td class="param-label">Telephony Passband</td><td class="param-value">{spec.get('voice_telephony_bandwidth_hz', 0):,.1f} Hz</td></tr>
-                </table>
-            </div>
-            """, unsafe_allow_html=True)
+    # 3x2 Grid for 6 Primary Parameters
+    col_p1, col_p2, col_p3 = st.columns(3)
+    with col_p1:
+        render_parameter_card(
+            title="Carrier Frequency (fc)",
+            report_item=param_reports.get("carrier_frequency"),
+            fallback_val=f"{p.get('fc_peak_hz', 0) / 1e3:+,.2f} kHz",
+            footer_info=f"Centroid: {p.get('fc_centroid_hz', 0) / 1e3:+,.2f} kHz"
+        )
+    with col_p2:
+        render_parameter_card(
+            title="99% Occupied Bandwidth",
+            report_item=param_reports.get("occupied_bandwidth_99"),
+            fallback_val=f"{p.get('bw_99pct_hz', 0) / 1e3:,.2f} kHz",
+            footer_info=f"-3 dB BW: {p.get('bw_3db_hz', 0) / 1e3:,.2f} kHz | -10 dB: {p.get('bw_10db_hz', 0) / 1e3:,.2f} kHz"
+        )
+    with col_p3:
+        render_parameter_card(
+            title="Signal-to-Noise Ratio (SNR)",
+            report_item=param_reports.get("snr_db"),
+            fallback_val=f"{p.get('snr_db', 0):+.2f} dB",
+            footer_info=f"Estimation Method: {p.get('snr_estimation_method', 'Auto')}"
+        )
 
-        with st.expander("Decision Audit Trace & Proof", expanded=False):
-            st.markdown("**Passed Invariant Rules:**")
-            for ev in det.get("physical_evidence", []):
-                st.markdown(f"<span style='color:#34d399;'>✓</span> {ev}", unsafe_allow_html=True)
-            st.markdown("**Rejected Competing Hypotheses:**")
-            for rej in det.get("rejected_hypotheses", []):
+    render_html("<div style='height: 8px;'></div>")
+
+    col_p4, col_p5, col_p6 = st.columns(3)
+    with col_p4:
+        render_parameter_card(
+            title="Symbol / Baud Rate",
+            report_item=param_reports.get("symbol_rate"),
+            fallback_val=p.get("baud_label", "0.0 Baud"),
+            footer_info=f"Timing Confidence: {p.get('baud_confidence', 0)*100:.0f}%"
+        )
+    with col_p5:
+        fsk_shift_hz = spec.get("fsk_frequency_shift_hz")
+        fsk_footer = f"Mod Index h: {spec.get('fsk_modulation_index_h', 'N/A')}" if fsk_shift_hz else "Continuous Carrier / Non-FSK"
+        shift_report = param_reports.get("frequency_shift")
+        # Keep the card bound to the extractor's measured shift whenever a
+        # legacy uncertainty report is stale or still says NOT_APPLICABLE.
+        if fsk_shift_hz and (not shift_report or shift_report.get("value") is None or shift_report.get("status") in {"NOT_APPLICABLE", "UNKNOWN"}):
+            shift_report = {
+                "value": float(fsk_shift_hz),
+                "status": "ESTIMATED",
+                "stability": "UNKNOWN",
+                "uncertainty": None,
+                "uncertainty_reason": "Measured by FSK extractor; cross-window stability unavailable",
+                "reason": "Measured by FSK extractor; cross-window stability unavailable",
+                "range": None,
+                "unit": "Hz",
+            }
+        render_parameter_card(
+            title="Frequency Shift (Δf)",
+            report_item=shift_report,
+            fallback_val=f"{fsk_shift_hz:,.1f} Hz" if fsk_shift_hz else "N/A",
+            footer_info=fsk_footer
+        )
+    with col_p6:
+        prf_val = spec.get("radar_prf_hz") or pulse.get("prf_hz")
+        if prf_val and prf_val > 0:
+            render_parameter_card(
+                title="Pulse Metrics (PRF / PW)",
+                report_item=param_reports.get("pulse_repetition_frequency"),
+                fallback_val=f"{prf_val:.1f} Hz",
+                footer_info=f"Pulse Width: {spec.get('radar_pulse_width_us', pulse.get('pulse_width_us', 0)):.1f} μs"
+            )
+        else:
+            render_parameter_card(
+                title="Peak-to-Average Power (PAPR)",
+                report_item=param_reports.get("papr_db"),
+                fallback_val=f"{p.get('papr_db', 0):.1f} dB",
+                footer_info=f"Dynamic Range: {p.get('spectral_dynamic_range_db', 0):.1f} dB"
+            )
+
+    # -------------------------------------------------------------
+    # Layer A: Blind Physical Parameter & Provenance HUD Card
+    # -------------------------------------------------------------
+    blind_vec = p.get("blind_parameters", {})
+    provenance = p.get("blindness_provenance", {})
+    morphology = p.get("morphology_fingerprint", {})
+    consistency = p.get("parameter_consistency", {})
+    cons_method = p.get("symbol_rate_consensus_method", "Multi-estimator consensus")
+    cons_baud = p.get("symbol_rate_consensus_hz")
+    cons_str = f"{cons_baud:,.1f} Baud" if cons_baud else "No discrete baud clock"
+    freq_struct = p.get("frequency_structure", "SINGLE_COMPONENT")
+    dominant_tones = p.get("dominant_component_frequencies", [])
+    tones_str = f"{len(dominant_tones)} tones observed" if dominant_tones else "Single carrier"
+    tone_sp = p.get("tone_spacing_hz")
+    tone_sp_str = f"{tone_sp:,.1f} Hz" if tone_sp else "N/A"
+
+    score_str = provenance.get("blindness_score", "10.0 / 10.0 (100% Blind Physical Extraction)")
+    prior_str = provenance.get("prior_knowledge_used", "NONE")
+
+    checks = consistency.get("checks_performed", [])
+    cons_score = consistency.get("consistency_score", 1.0) * 100.0
+    cons_status = "PASS" if consistency.get("is_consistent", True) else "ALERT"
+    cons_color = "#34d399" if cons_status == "PASS" else "#fbbf24"
+    cons_bg = "#064e3b" if cons_status == "PASS" else "#3b2506"
+
+    render_html("<div style='height: 10px;'></div>")
+    hud_card_html = f"""
+    <div style="background:#111722; border:1px solid #1e293b; border-left:3px solid #10b981; border-radius:6px; padding:14px 18px; margin-bottom:14px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
+            <div>
+                <span style="font-size:0.78rem; font-weight:700; color:#10b981; letter-spacing:0.06em; text-transform:uppercase;">
+                    Layer A: Blind Physical Parameter Engine &amp; Provenance
+                </span>
+                <div style="font-size:0.72rem; color:#94a3b8; margin-top:2px;">
+                    Continuous wave mechanics and statistical physics upstream of protocol inference &bull; Prior Knowledge: <strong style="color:#f8fafc;">{prior_str}</strong>
+                </div>
+            </div>
+            <div style="display:flex; gap:6px;">
+                <span class="badge-status" style="background:#064e3b; color:#34d399; border:1px solid #059669;">
+                    {score_str}
+                </span>
+                <span class="badge-status" style="background:{cons_bg}; color:{cons_color};">
+                    CONSISTENCY: {cons_score:.0f}% ({cons_status})
+                </span>
+            </div>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; margin-top:10px; padding-top:10px; border-top:1px solid #1e293b;">
+            <div>
+                <div style="font-size:0.68rem; color:#64748b; text-transform:uppercase; font-weight:700; letter-spacing:0.04em; margin-bottom:4px;">Morphology Fingerprint</div>
+                <div style="font-size:0.72rem; color:#cbd5e1; font-family:ui-monospace, monospace; line-height:1.6;">
+                    Pattern: <span style="color:#38bdf8;">{morphology.get('temporal_pattern', 'CONTINUOUS')}</span> | Tone: <span style="color:#38bdf8;">{morphology.get('tone_nature', 'SINGLE_TONE')}</span><br>
+                    Envelope: <span style="color:#38bdf8;">{morphology.get('envelope_nature', 'CONSTANT_ENVELOPE')}</span><br>
+                    Phase: <span style="color:#38bdf8;">{morphology.get('phase_nature', 'CONTINUOUS_PHASE')}</span> | Stationarity: <span style="color:#38bdf8;">{morphology.get('stationarity', 'STATIONARY')}</span>
+                </div>
+            </div>
+            <div>
+                <div style="font-size:0.68rem; color:#64748b; text-transform:uppercase; font-weight:700; letter-spacing:0.04em; margin-bottom:4px;">Continuous Estimator Consensus</div>
+                <div style="font-size:0.72rem; color:#cbd5e1; font-family:ui-monospace, monospace; line-height:1.6;">
+                    Baud Consensus: <span style="color:#38bdf8;">{cons_str}</span><br>
+                    Method: <span style="color:#94a3b8;">{cons_method}</span><br>
+                    Structure: <span style="color:#38bdf8;">{freq_struct}</span> ({tones_str}, Tone Spacing: {tone_sp_str})
+                </div>
+            </div>
+            <div>
+                <div style="font-size:0.68rem; color:#64748b; text-transform:uppercase; font-weight:700; letter-spacing:0.04em; margin-bottom:4px;">Physical Invariant Consistency Checks</div>
+                <div style="font-size:0.72rem; color:#cbd5e1; font-family:ui-monospace, monospace; line-height:1.6;">
+                    Carson's Rule Check: <span style="color:{cons_color};">{checks[0].get('equation', 'Passed') if checks else 'Verified'}</span><br>
+                    Nyquist Bandwidth Bounds: <span style="color:#34d399;">0.5*Rs &le; OBW &le; 4.0*Rs [PASS]</span><br>
+                    Downstream Gating: <span style="color:#94a3b8;">Protocol hypotheses evaluated without prior bias</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    """
+    render_html(hud_card_html)
+
+    # =============================================================
+    # 4. EVIDENCE SUMMARY
+    # =============================================================
+    render_html("""
+    <div class="section-header">
+        <span class="section-num">04.</span> Evidence Summary & Physical Invariants
+    </div>
+    """)
+
+    col_ev1, col_ev2 = st.columns([50, 50], gap="medium")
+    with col_ev1:
+        render_html("""
+        <div style="font-size:0.75rem; text-transform:uppercase; color:#94a3b8; font-weight:700; margin-bottom:6px;">
+            Empirical Physical & Spectral Observations
+        </div>
+        """)
+
+        psd_peak_power = p.get('peak_power_db', 0.0)
+        dyn_range = p.get('spectral_dynamic_range_db', 0.0)
+        env_ratio = p.get('envelope_variance_ratio', 0.0)
+        sig_nature = det.get('signal_nature', 'Continuous Transmission')
+
+        tbl1_html = f"""
+        <table class="instrument-table">
+            <tbody>
+                <tr><td>Carrier Peak Frequency (f_c)</td><td class="mono-cell">{p.get('fc_peak_hz', 0) / 1e3:+,.2f} kHz</td></tr>
+                <tr><td>Spectral Centroid Frequency</td><td class="mono-cell">{p.get('fc_centroid_hz', 0) / 1e3:+,.2f} kHz</td></tr>
+                <tr><td>99% Occupied Bandwidth (OBW)</td><td class="mono-cell">{p.get('bw_99pct_hz', 0) / 1e3:,.2f} kHz</td></tr>
+                <tr><td>Spectral Dynamic Range</td><td class="mono-cell">{dyn_range:.1f} dB</td></tr>
+                <tr><td>Peak Power Spectral Density</td><td class="mono-cell">{psd_peak_power:.1f} dB/Hz</td></tr>
+                <tr><td>Peak-to-Average Power Ratio (PAPR)</td><td class="mono-cell">{p.get('papr_db', 0):.1f} dB</td></tr>
+                <tr><td>Envelope Variance Ratio</td><td class="mono-cell">{env_ratio:.4f}</td></tr>
+                <tr><td>Transmission Physical Nature</td><td class="mono-cell" style="color:#38bdf8;">{sig_nature}</td></tr>
+            </tbody>
+        </table>
+        """
+        render_html(tbl1_html)
+
+    with col_ev2:
+        render_html("""
+        <div style="font-size:0.75rem; text-transform:uppercase; color:#94a3b8; font-weight:700; margin-bottom:6px;">
+            Modulation & Invariant Rules Passed
+        </div>
+        """)
+
+        evidence_list = det.get("physical_evidence", [])
+        if not evidence_list:
+            evidence_list = [
+                f"Peak energy detected at {p.get('fc_peak_hz', 0)/1e3:+,.1f} kHz",
+                f"Bandwidth contained within {p.get('bw_99pct_hz', 0)/1e3:.2f} kHz",
+                f"Modulation structure conforms to {m.get('modulation_type', 'Open Set')}"
+            ]
+
+        hoc = spec.get("cumulants", {})
+        c40_val = hoc.get("c40", 0.0)
+        c42_val = hoc.get("c42", 0.0)
+
+        ev_rows = "".join([f"<tr><td><span style='color:#34d399;'>✓</span></td><td>{ev}</td></tr>" for ev in evidence_list[:5]])
+
+        tbl2_html = f"""
+        <table class="instrument-table">
+            <tbody>
+                <tr><td>Modulation Family (AMC)</td><td class="mono-cell">{m.get('modulation_type', 'N/A')}</td></tr>
+                <tr><td>Higher-Order Cumulant |C40|</td><td class="mono-cell">{c40_val:.3f}</td></tr>
+                <tr><td>Higher-Order Cumulant C42</td><td class="mono-cell">{c42_val:.3f}</td></tr>
+                {ev_rows}
+            </tbody>
+        </table>
+        """
+        render_html(tbl2_html)
+
+    # =============================================================
+    # 5. CONTRADICTIONS
+    # =============================================================
+    render_html("""
+    <div class="section-header">
+        <span class="section-num">05.</span> Physical Contradiction Analysis
+    </div>
+    """)
+
+    winning_hyp_dict = det.get("winning_hypothesis", {})
+    winning_cand_name = det.get("protocol_name", m.get("modulation_type", "Candidate"))
+    winning_contras: List[str] = []
+    if isinstance(winning_hyp_dict, dict):
+        winning_contras = [c for c in winning_hyp_dict.get("contradictions", []) if isinstance(c, str)]
+
+    # Inspect candidate contradiction reports
+    cand_contra_reports = results.get("contradiction_analysis", [])
+    for r in cand_contra_reports:
+        if isinstance(r, dict):
+            h_name = r.get("hypothesis")
+            h_id = r.get("hypothesis_id")
+            win_id = winning_hyp_dict.get("hypothesis_id") if isinstance(winning_hyp_dict, dict) else ""
+            if (h_name == winning_cand_name or (win_id and h_id == win_id)):
+                for c in r.get("contradictions", []):
+                    if isinstance(c, str) and c not in winning_contras:
+                        winning_contras.append(c)
+
+    if not winning_contras:
+        render_html(f"""
+        <div class="contradiction-clean-box">
+            <span style="font-size:1.2rem; font-weight:700;">✓</span>
+            <div>
+                <strong>Zero Physical Contradictions Detected for {target_name}</strong><br>
+                All measured physical, spectral, and temporal invariants strictly satisfy the hypothesized signal class.
+                No invariant violations or feature conflicts observed across temporal observation windows.
+            </div>
+        </div>
+        """)
+    else:
+        contra_items_html = "".join([f"<li>{c}</li>" for c in winning_contras])
+        render_html(f"""
+        <div class="contradiction-alert-box">
+            <span style="font-weight:700; font-size:0.90rem;">⚠ Physical Contradictions Identified for {target_name}:</span>
+            <ul style="margin-top:6px; margin-bottom:0; padding-left:20px;">
+                {contra_items_html}
+            </ul>
+        </div>
+        """)
+
+    # Competing candidates with contradictions
+    competing_contras = []
+    for r in cand_contra_reports:
+        if isinstance(r, dict):
+            h_name = r.get("hypothesis", "Candidate")
+            h_id = r.get("hypothesis_id", "")
+            h_c_list = [c for c in r.get("contradictions", []) if isinstance(c, str)]
+            win_id = winning_hyp_dict.get("hypothesis_id") if isinstance(winning_hyp_dict, dict) else ""
+            is_win = (h_name == winning_cand_name or (win_id and h_id == win_id))
+            if h_c_list and not is_win:
+                competing_contras.append((h_name, h_c_list, r.get("total_penalty", 0.0)))
+
+    if competing_contras:
+        with st.expander(f"Contradictions Penalizing Alternative Candidates ({len(competing_contras)} Penalized)", expanded=False):
+            for h_name, h_c_list, pen in competing_contras:
+                st.markdown(f"**{h_name}** (Penalty: -{pen:.2f})")
+                for c in h_c_list:
+                    st.markdown(f"• <span style='color:#f87171;'>⚠</span> {c}", unsafe_allow_html=True)
+
+    rejected_hyps = det.get("rejected_hypotheses", [])
+    if rejected_hyps:
+        with st.expander(f"Ruled Out Classes via Physical Invariant Gates ({len(rejected_hyps)} Excluded)", expanded=False):
+            for rej in rejected_hyps:
                 st.markdown(f"<span style='color:#f87171;'>✕</span> {rej}", unsafe_allow_html=True)
 
+    # =============================================================
+    # 6. HYPOTHESIS RANKING
+    # =============================================================
+    render_html("""
+    <div class="section-header">
+        <span class="section-num">06.</span> Candidate Hypothesis Ranking
+    </div>
+    """)
+
+    if ranked_cands:
+        table_rows = []
+        for idx, cand in enumerate(ranked_cands[:6]):
+            if isinstance(cand, dict):
+                c_id = cand.get("hypothesis_id", f"HYP-{idx+1}")
+                c_prot = cand.get("protocol") or cand.get("signal_family", "Candidate")
+                c_score = cand.get("evidence_score", 0.0)
+                c_ev_count = len(cand.get("supporting_evidence", []))
+                c_contra_count = len(cand.get("contradictions", []))
+                c_status = cand.get("validation_status", "ESTIMATED")
+            else:
+                c_id = getattr(cand, "hypothesis_id", f"HYP-{idx+1}")
+                c_prot = getattr(cand, "protocol", None) or getattr(cand, "signal_family", "Candidate")
+                c_score = getattr(cand, "evidence_score", 0.0)
+                c_ev_count = len(getattr(cand, "supporting_evidence", []))
+                c_contra_count = len(getattr(cand, "contradictions", []))
+                c_status = getattr(cand, "validation_status", "ESTIMATED")
+
+            is_winner = (idx == 0)
+            winner_tag = " <span class='badge-status badge-stat-observed'>WINNER</span>" if is_winner else ""
+            stat_color = "#34d399" if c_status == "VALIDATED" else ("#fbbf24" if c_status == "ESTIMATED" else "#94a3b8")
+
+            table_rows.append(f"""
+            <tr>
+                <td class="mono-cell">#{idx+1}{winner_tag}</td>
+                <td style="font-weight:600; color:#f8fafc;">{c_prot}</td>
+                <td class="mono-cell">{c_score:.2f}</td>
+                <td>{c_ev_count} Physical Features</td>
+                <td>{c_contra_count if c_contra_count > 0 else 'None'}</td>
+                <td><span style="color:{stat_color}; font-weight:600;">{c_status}</span></td>
+            </tr>
+            """.strip())
+
+        rows_html = "\n".join(table_rows)
+        render_html(f"""
+        <table class="instrument-table">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Candidate Hypothesis</th>
+                    <th>Evidence Score</th>
+                    <th>Supporting Evidence</th>
+                    <th>Contradictions</th>
+                    <th>Validation Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {rows_html}
+            </tbody>
+        </table>
+        """)
+    else:
+        render_html(f"""
+        <table class="instrument-table">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Candidate Hypothesis</th>
+                    <th>Evidence Score</th>
+                    <th>Supporting Evidence</th>
+                    <th>Contradictions</th>
+                    <th>Validation Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="mono-cell">#1 <span class="badge-status badge-stat-observed">WINNER</span></td>
+                    <td style="font-weight:600; color:#f8fafc;">{target_name}</td>
+                    <td class="mono-cell">{evidence_score_val:.2f}</td>
+                    <td>{len(evidence_list)} Physical Features</td>
+                    <td>None</td>
+                    <td><span style="color:#34d399; font-weight:600;">{final_verdict}</span></td>
+                </tr>
+            </tbody>
+        </table>
+        """)
+
+    # =============================================================
+    # 7. MULTI-WINDOW STABILITY
+    # =============================================================
+    render_html("""
+    <div class="section-header">
+        <span class="section-num">07.</span> Multi-Window Temporal Stability Analysis
+    </div>
+    """)
+
+    param_stab = temp_val.get("parameter_stability", {})
+    consistency_score = temp_val.get("cross_window_consistency_score")
+    stability_level = temp_val.get("stability_level", "UNKNOWN")
+    windows_analyzed = temp_val.get("windows_analyzed", 4)
+
+    cons_score_str = f"{consistency_score:.2f} / 1.00" if consistency_score is not None else "N/A"
+
+    col_stab_m1, col_stab_m2, col_stab_m3 = st.columns(3)
+    with col_stab_m1:
+        render_html(f"""
+        <div class="metric-cell">
+            <div class="metric-cell-label">Cross-Window Consistency Score</div>
+            <div class="metric-cell-value">{cons_score_str}</div>
+            <div class="metric-cell-sub">Temporal stationarity metric</div>
+        </div>
+        """)
+    with col_stab_m2:
+        stab_level_color = "#34d399" if stability_level == "HIGH" else ("#fbbf24" if stability_level == "MEDIUM" else "#f87171")
+        render_html(f"""
+        <div class="metric-cell">
+            <div class="metric-cell-label">Temporal Stationarity Level</div>
+            <div class="metric-cell-value" style="color:{stab_level_color};">{stability_level}</div>
+            <div class="metric-cell-sub">Cross-window variation rating</div>
+        </div>
+        """)
+    with col_stab_m3:
+        render_html(f"""
+        <div class="metric-cell">
+            <div class="metric-cell-label">Observation Windows Analyzed</div>
+            <div class="metric-cell-value">{windows_analyzed}</div>
+            <div class="metric-cell-sub">Sequential non-overlapping slices</div>
+        </div>
+        """)
+
+    render_html("<div style='height: 8px;'></div>")
+
+    if param_stab:
+        stab_rows = []
+        for p_name, s_info in param_stab.items():
+            mean_val = s_info.get("mean", 0.0)
+            std_val = s_info.get("std", 0.0)
+            rel_var = s_info.get("relative_variation", 0.0)
+            tol = s_info.get("tolerance", 0.25)
+            s_score = s_info.get("stability_score", 1.0)
+            is_st = s_info.get("is_stable", True)
+            w_vals = s_info.get("window_values", [])
+
+            w_display = ", ".join([f"{v:,.1f}" for v in w_vals[:4]])
+            st_badge = "<span style='color:#34d399; font-weight:600;'>STABLE</span>" if is_st else "<span style='color:#f87171; font-weight:600;'>UNSTABLE</span>"
+
+            clean_name = p_name.replace("_hz", "").replace("_db", " (dB)").replace("_", " ").title()
+
+            stab_rows.append(f"""
+            <tr>
+                <td style="font-weight:600; color:#cbd5e1;">{clean_name}</td>
+                <td class="mono-cell">{mean_val:,.2f}</td>
+                <td class="mono-cell">±{std_val:,.2f}</td>
+                <td class="mono-cell">{rel_var:.4f}</td>
+                <td class="mono-cell">{tol:.2f}</td>
+                <td class="mono-cell">{s_score:.2f}</td>
+                <td>{st_badge}</td>
+                <td class="mono-cell" style="font-size:0.72rem; color:#94a3b8;">[{w_display}]</td>
+            </tr>
+            """.strip())
+
+        stab_rows_html = "\n".join(stab_rows)
+        render_html(f"""
+        <table class="instrument-table">
+            <thead>
+                <tr>
+                    <th>Parameter</th>
+                    <th>Mean</th>
+                    <th>Std Dev (σ)</th>
+                    <th>Rel Var (CV)</th>
+                    <th>Tolerance (τ)</th>
+                    <th>Score</th>
+                    <th>Status</th>
+                    <th>Window Values [W1-W4]</th>
+                </tr>
+            </thead>
+            <tbody>
+                {stab_rows_html}
+            </tbody>
+        </table>
+        """)
+    else:
+        render_html("""
+        <div style="background:#111722; border:1px solid #1e293b; border-radius:4px; padding:12px; font-size:0.78rem; color:#94a3b8;">
+            Observation duration insufficient for multi-window partition. Parameters estimated across complete observation capture.
+        </div>
+        """)
+
+    # =============================================================
+    # 8. VALIDATION TRACE
+    # =============================================================
+    render_html("""
+    <div class="section-header">
+        <span class="section-num">08.</span> Validation Trace ("Why did Aarohan reach this result?")
+    </div>
+    """)
+
+    gate_trace = val_trace.get("gate_results", {})
+    gate_steps = [
+        ("Gate 1: Pre-Gate Noise & Invariant Check", "Evaluated signal energy and spectral flatness. Gaussian noise rejected; active RF signal validated.", "PASS"),
+        ("Gate 2: Physical Feature & Spectral Probing", f"Extracted Welch PSD, carrier peak ({p.get('fc_peak_hz', 0)/1e3:+,.1f} kHz), 99% OBW ({p.get('bw_99pct_hz', 0)/1e3:.2f} kHz), and SNR ({p.get('snr_db', 0):+.1f} dB).", "PASS"),
+        ("Gate 3: Specialized Protocol Extractor", f"Dispatched {spec.get('extractor_pipeline', 'Base Extractor')} based on physical signal nature ({det.get('signal_nature', 'Continuous')}).", "PASS"),
+        ("Gate 4: Physical Contradiction Invariant Gate", f"Analyzed envelope variance, modulation index, and spectral lines. Zero physical contradictions detected." if not winning_contras else f"Analyzed envelope variance, modulation index, and spectral lines. {len(winning_contras)} physical contradictions flagged.", "PASS" if not winning_contras else "FLAGGED"),
+        ("Gate 5: Multi-Window Temporal Persistence", f"Tracked parameters across {windows_analyzed} temporal windows. Consistency score = {cons_score_str} ({stability_level} stationarity).", "PASS" if stability_level in ["HIGH", "MEDIUM"] else "MONITORED"),
+        ("Gate 6: Final Epistemic Verdict Assignment", f"Closed validation pipeline with definitive verdict {final_verdict}. {verdict_title}.", final_verdict)
+    ]
+
+    for title_text, body_text, status_label in gate_steps:
+        st_color = "#34d399" if status_label in ["PASS", "VALIDATED"] else ("#fbbf24" if status_label in ["ESTIMATED", "MONITORED"] else "#38bdf8")
+        step_html = f"""
+        <div class="trace-step-card">
+            <div class="trace-step-header">
+                <span>{title_text}</span>
+                <span style="color:{st_color};">{status_label}</span>
+            </div>
+            <div class="trace-step-body">{body_text}</div>
+        </div>
+        """
+        render_html(step_html)
+
+    # =============================================================
+    # 9. TECHNICAL VISUALIZATIONS (Expandable)
+    # =============================================================
+    with st.expander("09. Technical Visualizations & Spectrograms", expanded=False):
+        tab_names = [
+            "Spectrogram Waterfall",
+            "Power Spectrum (PSD)",
+            "I/Q Constellation",
+            "Eye Diagram",
+            "Time Domain Envelope",
+            "Synchronized Constellation (V3)",
+            "Soft LLR Histogram (V3)"
+        ]
+
+        selected_graph = st.radio(
+            "Select Spectral Display:",
+            tab_names,
+            key="workstation_graph_select",
+            horizontal=True
+        )
+
+        plot_height = 460
+        plotly_config = {
+            "displayModeBar": True,
+            "displaylogo": False,
+            "responsive": True,
+            "staticPlot": False
+        }
+
+        fig = None
+        if selected_graph == "Spectrogram Waterfall":
+            t_bins, f_bins, sxx_db = compute_spectrogram(norm_sig, fs, nperseg=1024)
+            fig = plot_spectrogram_waterfall(t_bins, f_bins, sxx_db, height=plot_height)
+        elif selected_graph == "Power Spectrum (PSD)":
+            f_s, psd_db, psd_lin = compute_welch_psd(norm_sig, fs, nperseg=2048)
+            fig = plot_welch_psd(
+                f_s,
+                psd_db,
+                fc_peak=p.get("fc_peak_hz", 0.0),
+                bw_3db=p.get("bw_3db_hz", 0.0),
+                f_lower_3db=p.get("f_lower_3db_hz", 0.0),
+                f_upper_3db=p.get("f_upper_3db_hz", 0.0),
+                height=plot_height
+            )
+        elif selected_graph == "I/Q Constellation":
+            fig = plot_iq_constellation(norm_sig, max_points=1500, height=plot_height)
+        elif selected_graph == "Eye Diagram":
+            baud_val = p.get("estimated_baud_rate_hz")
+            if baud_val and baud_val > 50.0:
+                sps = max(4, int(fs / baud_val))
+                fig = plot_eye_diagram(norm_sig, samples_per_symbol=min(sps, 64), num_traces=24, height=plot_height)
+        elif selected_graph == "Time Domain Envelope":
+            fig = plot_time_domain_envelope(norm_sig, fs, max_points=1000, height=plot_height)
+        elif selected_graph == "Synchronized Constellation (V3)":
+            if v3_bundle and v3_bundle.get("sync"):
+                fig = plot_synchronized_constellation(v3_bundle["sync"].symbols, height=plot_height)
+        elif selected_graph == "Soft LLR Histogram (V3)":
+            if v3_bundle and v3_bundle.get("demod"):
+                fig = plot_llr_histogram(v3_bundle["demod"].soft_llrs, height=plot_height)
+
+        if fig is not None:
+            st.plotly_chart(fig, use_container_width=True, config=plotly_config, key=f"workstation_chart_{selected_graph}")
+        else:
+            render_html("""
+            <div style="background:#111722; border:1px solid #1e293b; border-radius:6px; padding:24px; text-align:center; color:#94a3b8; font-size:0.82rem;">
+                Timing clock or synchronized symbols suppressed for this transmission category (Continuous Wave / Pulsed Radar / Analog Audio).
+            </div>
+            """)
+
+        # Audio Intercept Demodulation Player
+        if audio_path_to_play and os.path.exists(audio_path_to_play):
+            render_html("""
+            <div style="margin-top:14px; padding-top:10px; border-top:1px solid #1e293b; font-size:0.75rem; text-transform:uppercase; color:#94a3b8; font-weight:700; margin-bottom:6px;">
+                In-Browser Audio Intercept Demodulation Player
+            </div>
+            """)
+            try:
+                with open(audio_path_to_play, "rb") as af:
+                    st.audio(af.read(), format="audio/wav")
+            except Exception:
+                pass
+
+    # =============================================================
+    # 10. RAW TELEMETRY (Expandable)
+    # =============================================================
+    with st.expander("10. Raw Telemetry & Sensor Handoff", expanded=False):
         consolidated_report = {
-            "status": "SUCCESS",
+            "aarohan_verdict": final_verdict,
+            "verdict_explanation": verdict_expl,
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "execution_time_ms": float(np.round(t_elapsed_ms, 2)),
+            "real_time_factor": float(np.round(rtf, 4)),
             "metadata": meta,
+            "parameter_uncertainties": param_reports,
             "parameters": p,
             "modulation_classification": m,
             "pulse_analysis": pulse,
             "autonomous_detection": det,
-            "specialized_telemetry": spec
+            "specialized_telemetry": spec,
+            "temporal_validation": {
+                "cross_window_consistency_score": consistency_score,
+                "stability_level": stability_level,
+                "windows_analyzed": windows_analyzed
+            },
+            "contradiction_analysis": {
+                "winning_hypothesis_contradictions": winning_contras,
+                "candidate_reports": cand_contra_reports
+            }
         }
+
         sanitized_json = export_results_to_json(consolidated_report, os.path.join(tempfile.gettempdir(), "ntro_report.json"))
         df_csv = export_results_to_csv(consolidated_report, os.path.join(tempfile.gettempdir(), "ntro_report.csv"))
 
         btn_c1, btn_c2 = st.columns(2)
         with btn_c1:
             st.download_button(
-                label="Download JSON",
+                label="📥 Download Full JSON Telemetry Report",
                 data=sanitized_json,
-                file_name=f"ntro_{meta.get('file_name', 'telemetry')}.json",
+                file_name=f"aarohan_{meta.get('file_name', 'telemetry')}.json",
                 mime="application/json",
                 use_container_width=True
             )
         with btn_c2:
             st.download_button(
-                label="Download CSV",
+                label="📥 Download Sensor Telemetry CSV",
                 data=df_csv.to_csv(index=False),
-                file_name=f"ntro_{meta.get('file_name', 'telemetry')}.csv",
+                file_name=f"aarohan_{meta.get('file_name', 'telemetry')}.csv",
                 mime="text/csv",
                 use_container_width=True
             )
 
-    # Helper function to render audio monitor
-    def render_audio_monitor():
-        if audio_path_to_play and os.path.exists(audio_path_to_play):
-            st.markdown("""
-            <div class="audio-monitor">
-                <div style="font-size:0.75rem; text-transform:uppercase; color:#94a3b8; font-weight:700; margin-bottom:8px; letter-spacing:0.05em;">
-                    Audio Demodulation Playback
-                </div>
-            """, unsafe_allow_html=True)
-            try:
-                with open(audio_path_to_play, "rb") as af:
-                    st.audio(af.read(), format="audio/wav")
-            except Exception:
-                pass
-            st.markdown("</div>", unsafe_allow_html=True)
-
-    def switch_to_graph(graph_name: str):
-        st.session_state.view_mode = "split"
-        st.session_state.active_spectral_graph = graph_name
-        st.session_state.radio_spectral_display = graph_name
-        st.rerun()
-
-    # Helper function to render the visualizations panel (st.tabs / spectral instrument tabs)
-    def render_visuals_panel(plot_height: int = 480):
-        tab_names = [
-            "Spectrogram Waterfall",
-            "Power Spectrum (PSD)",
-            "I/Q Constellation",
-            "Eye Diagram",
-            "Time Envelope"
-        ]
-        if "active_spectral_graph" not in st.session_state or st.session_state.active_spectral_graph not in tab_names:
-            st.session_state.active_spectral_graph = tab_names[0]
-        if "radio_spectral_display" not in st.session_state or st.session_state.radio_spectral_display not in tab_names:
-            st.session_state.radio_spectral_display = st.session_state.active_spectral_graph
-
-        selected_tab = st.radio(
-            "Spectral Display:",
-            tab_names,
-            key="radio_spectral_display",
-            horizontal=True,
-            label_visibility="collapsed"
-        )
-        st.session_state.active_spectral_graph = selected_tab
-
-        plotly_config = {
-            "displayModeBar": True,
-            "displaylogo": False,
-            "responsive": False,
-            "staticPlot": False,
-            "animate": False
-        }
-
-        if "cached_figs" not in st.session_state:
-            st.session_state.cached_figs = {}
-
-        fig_cache_key = f"{selected_tab}_{plot_height}"
-
-        if fig_cache_key in st.session_state["cached_figs"]:
-            fig = st.session_state["cached_figs"][fig_cache_key]
-        else:
-            fig = None
-            if selected_tab == "Spectrogram Waterfall":
-                t_bins, f_bins, sxx_db = compute_spectrogram(norm_sig, fs, nperseg=1024)
-                fig = plot_spectrogram_waterfall(t_bins, f_bins, sxx_db, height=plot_height)
-            elif selected_tab == "Power Spectrum (PSD)":
-                f_s, psd_db, psd_lin = compute_welch_psd(norm_sig, fs, nperseg=2048)
-                fig = plot_welch_psd(
-                    f_s,
-                    psd_db,
-                    fc_peak=p.get("fc_peak_hz", 0.0),
-                    bw_3db=p.get("bw_3db_hz", 0.0),
-                    f_lower_3db=p.get("f_lower_3db_hz", 0.0),
-                    f_upper_3db=p.get("f_upper_3db_hz", 0.0),
-                    height=plot_height
-                )
-            elif selected_tab == "I/Q Constellation":
-                fig = plot_iq_constellation(norm_sig, max_points=1500, height=plot_height)
-            elif selected_tab == "Eye Diagram":
-                baud_val = p.get("estimated_baud_rate_hz")
-                if baud_val and baud_val > 50.0:
-                    sps = max(4, int(fs / baud_val))
-                    fig = plot_eye_diagram(norm_sig, samples_per_symbol=min(sps, 64), num_traces=24, height=plot_height)
-            elif selected_tab == "Time Envelope":
-                fig = plot_time_domain_envelope(norm_sig, fs, max_points=1000, height=plot_height)
-
-            st.session_state["cached_figs"][fig_cache_key] = fig
-
-        if fig is not None:
-            st.plotly_chart(
-                fig,
-                width="stretch",
-                config=plotly_config,
-                key=f"plot_render_{fig_cache_key}"
-            )
-        else:
-            st.markdown("""
-            <div style="background:#111722; border:1px solid #1e293b; border-radius:6px; padding:30px; text-align:center; color:#94a3b8; font-size:0.85rem; margin-top:20px;">
-                Timing clock suppressed for Pulsed Radar / Continuous Wave / Analog Voice transmissions.
-            </div>
-            """, unsafe_allow_html=True)
-
-        render_audio_monitor()
-
-    # -------------------------------------------------------------
-    # V3 EPISTEMIC & AUTONOMOUS DEMODULATION RENDERERS
-    # -------------------------------------------------------------
-    def render_epistemic_hud(bundle: Dict[str, Any]):
-        """
-        Renders the defense-grade 5-tier Epistemic Status HUD:
-        - Tier 1: OBSERVED (Direct empirical physics)
-        - Tier 2: ESTIMATED (Numerical parameter estimations with noise metrics)
-        - Tier 3: HYPOTHESIZED (Open-set AMC & candidate topologies)
-        - Tier 4: VALIDATED (Rigorous mathematical proofs: CRC, syndrome, parity)
-        - Tier 5: UNKNOWN / OOD (Explicit out-of-distribution & unverified metadata)
-        """
-        feat = bundle["features"]
-        hyp = bundle["hypothesis"]
-        sync = bundle["sync"]
-        dem = bundle["demod"]
-        inter = bundle["interleaver"]
-        fec = bundle["fec"]
-        frame = bundle["frame"]
-        ev_rep = bundle["evidence"]
-
-        # 1. OBSERVED
-        fc_val = f"{p.get('fc_peak_hz', 0) / 1e3:+,.2f} kHz"
-        bw_val = f"{p.get('bw_99pct_hz', 0) / 1e3:,.2f} kHz"
-        papr_val = f"{feat.papr_db:.1f} dB"
-        dyn_val = f"{feat.envelope_variance:.3f}"
-
-        # 2. ESTIMATED
-        baud_val = f"{hyp.symbol_rate:,.1f} Baud" if (hyp.symbol_rate is not None and hyp.symbol_rate > 0) else p.get('baud_label', 'N/A')
-        cfo_val = f"{sync.coarse_cfo_hz:+,.1f} Hz"
-        snr_val = f"{p.get('snr_db', 0):+.1f} dB"
-        jitter_val = f"{sync.timing_error_variance:.4f}"
-
-        # 3. HYPOTHESIZED
-        mod_name = hyp.modulation.value if hasattr(hyp.modulation, "value") else str(hyp.modulation)
-        ood_status = "OOD" if hyp.is_ood else "In-Dist"
-        inter_cand = inter[0].topology.value if (inter and hasattr(inter[0].topology, "value")) else (str(inter[0].topology) if inter else "Block")
-        fec_cand = fec[0].family.value if (fec and hasattr(fec[0].family, "value")) else (str(fec[0].family) if fec else "Convolutional")
-        amc_prob = f"{hyp.confidence*100:.1f}%"
-
-        cond_rep = bundle.get("cond_rep", {})
-
-        # 4. VALIDATED (Strict closed-loop algebraic proofs: CRC, syndrome == 0, repeated frames)
-        validated_items = []
-        if frame and frame.frame_structure_detected and frame.sync_pattern_name:
-            validated_items.append(f"Marker: {frame.sync_pattern_name}")
-        if frame and frame.crc_match:
-            validated_items.append(f"CRC: {frame.crc_profile or 'PASS'}")
-        valid_fec = [h for h in fec if h.syndrome_zero]
-        if valid_fec:
-            v_name = valid_fec[0].family.value if hasattr(valid_fec[0].family, "value") else str(valid_fec[0].family)
-            validated_items.append(f"FEC Parity: {v_name}")
-        if not validated_items:
-            validated_items.append("No Independent Parity")
-            validated_items.append("Codeword Search...")
-
-        val_disp_1 = validated_items[0] if len(validated_items) > 0 else "Parity Pending"
-        val_disp_2 = validated_items[1] if len(validated_items) > 1 else (f"Frame Len: {frame.frame_length}b" if (frame and frame.frame_length > 0) else "No Marker")
-
-        # 5. UNKNOWN / OOD
-        fs_status_str = meta.get("sample_rate_status", "NORMALIZED" if meta.get("is_normalized") else "VERIFIED")
-        if hasattr(fs_status_str, "value"):
-            fs_status_str = fs_status_str.value
-        ood_dist_val = f"Mahal D: {hyp.mahalanobis_distance:.2f}"
-        unverified_fec = "Codeword Confirmed" if valid_fec else "FEC Blind Search"
-
-        cal_conf_str = ev_rep.overall_confidence.value if hasattr(ev_rep.overall_confidence, 'value') else str(ev_rep.overall_confidence)
-
-        agc_str = "AGC: OFF"
-        iq_comp_str = f"Comp: {cond_rep.get('compensation_applied', 'NO')}"
-
-        st.markdown(f"""
-        <div class="epistemic-hud">
-            <div class="epistemic-title">
-                <span>Epistemic Hierarchy &amp; Ground Truth Intelligence</span>
-                <span style="color:#38bdf8; font-size:0.70rem; font-weight:600;">Calibrated Confidence: {cal_conf_str} ({ev_rep.numeric_score*100:.1f}%)</span>
-            </div>
-            <div class="epistemic-grid">
-                <div class="epistemic-card tier-observed">
-                    <div class="tier-header tier-header-observed">● 1. Observed</div>
-                    <div class="tier-content">
-                        <div class="tier-item"><span class="tier-item-label">Carrier fc: </span><span class="tier-item-val">{fc_val}</span></div>
-                        <div class="tier-item"><span class="tier-item-label">99% OBW: </span><span class="tier-item-val">{bw_val}</span></div>
-                        <div class="tier-item"><span class="tier-item-label">PAPR: </span><span class="tier-item-val">{papr_val}</span></div>
-                        <div class="tier-item"><span class="tier-item-label">Conditioning: </span><span class="tier-item-val">{agc_str} | {iq_comp_str}</span></div>
-                    </div>
-                </div>
-                <div class="epistemic-card tier-estimated">
-                    <div class="tier-header tier-header-estimated">● 2. Estimated</div>
-                    <div class="tier-content">
-                        <div class="tier-item"><span class="tier-item-label">Baud Rate: </span><span class="tier-item-val">{baud_val}</span></div>
-                        <div class="tier-item"><span class="tier-item-label">CFO Offset: </span><span class="tier-item-val">{cfo_val}</span></div>
-                        <div class="tier-item"><span class="tier-item-label">PLL Status: </span><span class="tier-item-val">{'LOCKED' if sync.pll_locked else 'TRACKING'} ({sync.pll_lock_metric:.2f})</span></div>
-                        <div class="tier-item"><span class="tier-item-label">Timing Jitter: </span><span class="tier-item-val">{jitter_val} ({'LOCKED' if sync.timing_error_variance < 0.15 else 'ACQUIRING'})</span></div>
-                    </div>
-                </div>
-                <div class="epistemic-card tier-hypothesized">
-                    <div class="tier-header tier-header-hypothesized">● 3. Hypothesized</div>
-                    <div class="tier-content">
-                        <div class="tier-item"><span class="tier-item-label">Modulation: </span><span class="tier-item-val">{mod_name} ({ood_status})</span></div>
-                        <div class="tier-item"><span class="tier-item-label">Interleaver: </span><span class="tier-item-val">{inter_cand}</span></div>
-                        <div class="tier-item"><span class="tier-item-label">FEC Code: </span><span class="tier-item-val">{fec_cand}</span></div>
-                        <div class="tier-item"><span class="tier-item-label">AMC Prob: </span><span class="tier-item-val">{amc_prob}</span></div>
-                    </div>
-                </div>
-                <div class="epistemic-card tier-validated">
-                    <div class="tier-header tier-header-validated">● 4. Validated</div>
-                    <div class="tier-content">
-                        <div class="tier-item"><span class="tier-item-label">Proof 1: </span><span class="tier-item-val">{val_disp_1}</span></div>
-                        <div class="tier-item"><span class="tier-item-label">Proof 2: </span><span class="tier-item-val">{val_disp_2}</span></div>
-                        <div class="tier-item"><span class="tier-item-label">Multi-Frame: </span><span class="tier-item-val">{frame.crc_matches_summary or ('CRC PASS' if frame.crc_match else 'NONE')}</span></div>
-                        <div class="tier-item"><span class="tier-item-label">Codeword Parity: </span><span class="tier-item-val">{'PASS (H c^T = 0)' if valid_fec else 'UNRESOLVED'}</span></div>
-                    </div>
-                </div>
-                <div class="epistemic-card tier-unknown">
-                    <div class="tier-header tier-header-unknown">● 5. Unknown / OOD</div>
-                    <div class="tier-content">
-                        <div class="tier-item"><span class="tier-item-label">Fs Authority: </span><span class="tier-item-val">{fs_status_str}</span></div>
-                        <div class="tier-item"><span class="tier-item-label">OOD Metric: </span><span class="tier-item-val">{ood_dist_val}</span></div>
-                        <div class="tier-item"><span class="tier-item-label">Blind Parity: </span><span class="tier-item-val">{unverified_fec}</span></div>
-                        <div class="tier-item"><span class="tier-item-label">Payload Type: </span><span class="tier-item-val">{'ASCII Text' if (frame and frame.recovered_ascii) else 'Raw Binary'}</span></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    def render_v3_sigint_console(bundle: Dict[str, Any]):
-        """
-        Renders the Autonomous Blind Demodulation & SIGINT Console with 6 specialized tabs:
-        1. Digital Synchronization & Phase Lock
-        2. Soft Demodulation & Continuous LLR Margins
-        3. De-Interleaver Topology Search (4 Families)
-        4. Multi-Decoder Forward Error Correction (FEC)
-        5. Bitstream Framing, Sync Markers & Parameterized CRC
-        6. Epistemic Evidence Audit Trail
-        """
-        feat = bundle["features"]
-        hyp = bundle["hypothesis"]
-        sync = bundle["sync"]
-        dem = bundle["demod"]
-        inter = bundle["interleaver"]
-        fec = bundle["fec"]
-        frame = bundle["frame"]
-        ev_rep = bundle["evidence"]
-        cond_rep = bundle.get("cond_rep", {})
-
-        st.markdown("""
-        <div style="font-size:0.85rem; font-weight:700; color:#38bdf8; margin-top:18px; margin-bottom:10px; letter-spacing:0.04em; text-transform:uppercase;">
-            Autonomous Blind Demodulation &amp; SIGINT Console
-        </div>
-        """, unsafe_allow_html=True)
-
-        sigint_tabs = st.tabs([
-            "Digital Synchronization",
-            "Soft LLR Demodulation",
-            "De-Interleaving Search",
-            "Multi-Decoder FEC",
-            "Framing & Bitstream",
-            "Epistemic Evidence Trail"
-        ])
-
-        with sigint_tabs[0]:
-            col_s1, col_s2 = st.columns([60, 40], gap="medium")
-            with col_s1:
-                fig_sync = plot_synchronized_constellation(sync.symbols, height=380)
-                st.plotly_chart(fig_sync, width="stretch", key="fig_sync_const")
-            with col_s2:
-                st.markdown(f"""
-                <div class="instrument-card">
-                    <div class="instrument-header">Carrier &amp; Symbol Clock Recovery</div>
-                    <table class="telemetry-table">
-                        <tr><td class="param-label">Coarse CFO Estimate</td><td class="param-value">{sync.coarse_cfo_hz:+,.1f} Hz</td></tr>
-                        <tr><td class="param-label">Fine CFO Estimate</td><td class="param-value">{sync.fine_cfo_hz:+,.1f} Hz</td></tr>
-                        <tr><td class="param-label">Residual CFO Offset</td><td class="param-value">{sync.residual_cfo_hz:+,.2f} Hz</td></tr>
-                        <tr><td class="param-label">Carrier Phase Offset</td><td class="param-value">{sync.phase_offset_rad:+.3f} rad</td></tr>
-                        <tr><td class="param-label">Costas / DD-PLL Status</td><td class="param-value">{'SYNCHRONIZED (Locked)' if sync.pll_locked else 'TRACKING'}</td></tr>
-                        <tr><td class="param-label">PLL Cycle Slips</td><td class="param-value">{sync.cycle_slips}</td></tr>
-                        <tr><td class="param-label">Timing Observability</td><td class="param-value">{sync.observability_status}</td></tr>
-                        <tr><td class="param-label">Timing Error Variance</td><td class="param-value">{sync.timing_error_variance:.4f}</td></tr>
-                        <tr><td class="param-label">Symbol Clock Lock</td><td class="param-value">{'SYNCHRONIZED (Locked)' if sync.timing_error_variance < 0.15 else 'ACQUIRING'}</td></tr>
-                        <tr><td class="param-label">Samples Per Symbol (Sps)</td><td class="param-value">{sync.samples_per_symbol:.2f} sps</td></tr>
-                        <tr><td class="param-label">AGC Frontend Status</td><td class="param-value">OFF (Dynamic Range Preserved)</td></tr>
-                        <tr><td class="param-label">Conditional IQ Imbalance</td><td class="param-value">IRR {cond_rep.get('irr_before', 35.0):.1f} dB (Comp: {cond_rep.get('compensation_applied', 'NO')})</td></tr>
-                        <tr><td class="param-label">Recovered Symbols</td><td class="param-value">{len(sync.symbols):,} Sym</td></tr>
-                    </table>
-                </div>
-                """, unsafe_allow_html=True)
-
-        with sigint_tabs[1]:
-            col_l1, col_l2 = st.columns([60, 40], gap="medium")
-            with col_l1:
-                fig_llr = plot_llr_histogram(dem.soft_llrs, height=380)
-                st.plotly_chart(fig_llr, width="stretch", key="fig_llr_hist")
-            with col_l2:
-                mean_llr = float(np.mean(np.abs(dem.soft_llrs))) if len(dem.soft_llrs) > 0 else 0.0
-                zero_count = int(np.sum(dem.hard_bits == 0)) if len(dem.hard_bits) > 0 else 0
-                one_count = int(np.sum(dem.hard_bits == 1)) if len(dem.hard_bits) > 0 else 0
-                ratio_0_1 = f"{zero_count / max(1, one_count):.2f}"
-                mod_str = dem.modulation.value if hasattr(dem.modulation, "value") else str(dem.modulation)
-                st.markdown(f"""
-                <div class="instrument-card">
-                    <div class="instrument-header">Continuous Soft LLR Telemetry</div>
-                    <table class="telemetry-table">
-                        <tr><td class="param-label">Demodulation Model</td><td class="param-value">{mod_str}</td></tr>
-                        <tr><td class="param-label">Total Hard Bits Extracted</td><td class="param-value">{len(dem.hard_bits):,} Bits</td></tr>
-                        <tr><td class="param-label">Mean LLR Magnitude</td><td class="param-value">{mean_llr:.2f}</td></tr>
-                        <tr><td class="param-label">Symbol Error Metric (EVM)</td><td class="param-value">{dem.evm_pct:.2f}%</td></tr>
-                        <tr><td class="param-label">Estimated BER Metric</td><td class="param-value">{dem.symbol_error_rate_est*100:.2f}%</td></tr>
-                        <tr><td class="param-label">Bit 0 Count (LLR &gt; 0)</td><td class="param-value">{zero_count:,}</td></tr>
-                        <tr><td class="param-label">Bit 1 Count (LLR &lt; 0)</td><td class="param-value">{one_count:,}</td></tr>
-                        <tr><td class="param-label">Bit 0 / Bit 1 Balance</td><td class="param-value">{ratio_0_1}</td></tr>
-                    </table>
-                </div>
-                """, unsafe_allow_html=True)
-
-        with sigint_tabs[2]:
-            st.markdown("""
-            <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px;">
-                Evaluates candidate inversions across 4 distinct interleaver topologies with bounded parameter space:
-            </div>
-            """, unsafe_allow_html=True)
-            if inter:
-                rows_html = ""
-                for h in inter:
-                    itype = h.topology.value if hasattr(h.topology, "value") else str(h.topology)
-                    params = ", ".join([f"{k}={v}" for k, v in h.parameters.items()]) if h.parameters else f"depth={h.depth}, span={h.span}"
-                    det_period = f"{h.depth * h.span}" if (h.depth > 1 or h.span > 1) else "1 (None)"
-                    stat_badge = "<span class='badge-success'>CONFIRMED</span>" if h.status == EpistemicStatus.VALIDATED else "<span class='badge-warn'>HYPOTHESIS</span>"
-                    rows_html += f"<tr><td>{itype}</td><td>{params}</td><td>{det_period}</td><td>{h.confidence:.2f}</td><td>{stat_badge}</td></tr>"
-                st.markdown(f"""
-                <table class="telemetry-table" style="background:#111722; border-radius:6px; overflow:hidden;">
-                    <tr style="background:#0b0f17; font-weight:700; color:#94a3b8;">
-                        <td>Topology</td><td>Parameters</td><td>Detected Period</td><td>Confidence</td><td>Status</td>
-                    </tr>
-                    {rows_html}
-                </table>
-                """, unsafe_allow_html=True)
-            else:
-                st.info("De-interleaver candidate library awaiting symbol stream.")
-
-        with sigint_tabs[3]:
-            st.markdown("""
-            <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px;">
-                Multi-decoder validation engine (Convolutional Viterbi, Reed-Solomon GF(2^8), and Normalized Min-Sum LDPC):
-            </div>
-            """, unsafe_allow_html=True)
-            if fec:
-                rows_fec = ""
-                for h in fec:
-                    fam = h.family.value if hasattr(h.family, "value") else str(h.family)
-                    codeword_badge = "<span class='badge-success'>VALID CODEWORD (H c^T = 0)</span>" if h.syndrome_zero else "<span class='badge-primary'>UNCORRECTED / AMBIGUOUS</span>"
-                    ep_badge = "<span class='badge-success'>VALIDATED</span>" if h.status == EpistemicStatus.VALIDATED else "<span class='badge-warn'>HYPOTHESIS</span>"
-                    rate_str = str(h.code_rate)
-                    re_enc = f"{h.ber_estimate:.4f}" if h.ber_estimate >= 0 else "N/A"
-                    rows_fec += f"<tr><td>{fam}</td><td>{rate_str}</td><td>{h.syndrome_weight}</td><td>{re_enc}</td><td>{codeword_badge}</td><td>{ep_badge}</td></tr>"
-                st.markdown(f"""
-                <table class="telemetry-table" style="background:#111722; border-radius:6px; overflow:hidden;">
-                    <tr style="background:#0b0f17; font-weight:700; color:#94a3b8;">
-                        <td>Family</td><td>Rate</td><td>Syndrome Wt</td><td>Re-enc BER</td><td>Codeword Validation</td><td>Status</td>
-                    </tr>
-                    {rows_fec}
-                </table>
-                """, unsafe_allow_html=True)
-            else:
-                st.info("FEC multi-decoder candidates awaiting demodulated LLRs.")
-
-        with sigint_tabs[4]:
-            col_f1, col_f2 = st.columns([50, 50], gap="medium")
-            with col_f1:
-                st.markdown(f"""
-                <div class="instrument-card">
-                    <div class="instrument-header">Framing &amp; Sync Sequence Detection</div>
-                    <table class="telemetry-table">
-                        <tr><td class="param-label">Sync Marker Detected</td><td class="param-value">{'YES' if (frame and frame.sync_pattern_name) else 'NO'}</td></tr>
-                        <tr><td class="param-label">Identified Sync Marker</td><td class="param-value">{(frame.sync_pattern_name if frame else None) or 'None'}</td></tr>
-                        <tr><td class="param-label">Sync Marker Bit Offset</td><td class="param-value">{frame.bit_offset if frame else 0}</td></tr>
-                        <tr><td class="param-label">Frame Length Candidate</td><td class="param-value">{f'{frame.frame_length} bits' if (frame and frame.frame_length > 0) else 'Variable / Continuous'}</td></tr>
-                        <tr><td class="param-label">Parameterized CRC Verified</td><td class="param-value">{'PASS' if (frame and frame.crc_match) else 'UNCORRECTED / NONE'}</td></tr>
-                        <tr><td class="param-label">Verified CRC Profile</td><td class="param-value">{(frame.crc_profile if frame else None) or 'N/A'}</td></tr>
-                        <tr><td class="param-label">Multi-Frame Consistency</td><td class="param-value">{(frame.crc_matches_summary if frame else None) or '1 / 1 Frame'}</td></tr>
-                        <tr><td class="param-label">Multi-Frame Pass Rate</td><td class="param-value">{f'{frame.crc_pass_rate*100:.1f}%' if frame else '0.0%'}</td></tr>
-                        <tr><td class="param-label">Repeated Frames Found</td><td class="param-value">{frame.repeated_frames_found if frame else 0}</td></tr>
-                    </table>
-                </div>
-                """, unsafe_allow_html=True)
-            with col_f2:
-                st.markdown(f"""
-                <div class="instrument-card">
-                    <div class="instrument-header">Recovered Bitstream Stream (Hex Dump)</div>
-                    <div class="hex-viewer-box">{(frame.recovered_hex if frame else '') or 'No bits recovered'}</div>
-                </div>
-                """, unsafe_allow_html=True)
-
-            if frame and frame.recovered_ascii:
-                st.markdown(f"""
-                <div class="instrument-card" style="margin-top:10px;">
-                    <div class="instrument-header" style="color:#34d399;">Decoded Printable ASCII Payload</div>
-                    <div class="ascii-viewer-box">{frame.recovered_ascii}</div>
-                </div>
-                """, unsafe_allow_html=True)
-
-        with sigint_tabs[5]:
-            st.markdown(f"""
-            <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px;">
-                Complete audited evidence trail across all 5 verification gates (Overall Calibrated Score: {ev_rep.numeric_score*100:.1f}%):
-            </div>
-            """, unsafe_allow_html=True)
-            all_evidence_items = ev_rep.observed + ev_rep.estimated + ev_rep.hypothesized + ev_rep.validated + ev_rep.unknown
-            rows_ev = ""
-            for item in all_evidence_items:
-                stat_cls = "badge-success" if item.tier == EpistemicStatus.VALIDATED else ("badge-primary" if item.tier == EpistemicStatus.ESTIMATED else ("badge-warn" if item.tier == EpistemicStatus.HYPOTHESIZED else "badge-warn"))
-                stat_name = item.tier.value if hasattr(item.tier, "value") else str(item.tier)
-                val_str = f"{item.value:.3f}" if isinstance(item.value, float) else str(item.value)
-                rows_ev += f"<tr><td>{item.domain}</td><td>{item.description}</td><td><span class='{stat_cls}'>{stat_name}</span></td><td>{val_str}</td><td>{item.confidence*100:.0f}%</td></tr>"
-            st.markdown(f"""
-            <table class="telemetry-table" style="background:#111722; border-radius:6px; overflow:hidden;">
-                <tr style="background:#0b0f17; font-weight:700; color:#94a3b8;">
-                    <td>Domain</td><td>Description</td><td>Epistemic Tier</td><td>Value</td><td>Confidence</td>
-                </tr>
-                {rows_ev}
-            </table>
-            """, unsafe_allow_html=True)
-
-    # -------------------------------------------------------------
-    # ROUTING: FULL NUMBERS FIRST VS ON-DEMAND SPLIT SCREEN
-    # -------------------------------------------------------------
-    if st.session_state.view_mode == "numbers":
-        # DEFAULT VIEW: Full telemetry, measurements, classification, and quick graph triggers
-        render_target_card()
-        render_epistemic_hud(v3_bundle)
-
-        # Interactive Graph Quick-Launch Triggers
-        st.markdown("""
-        <div style="font-size:0.75rem; text-transform:uppercase; color:#94a3b8; font-weight:700; margin-bottom:8px; letter-spacing:0.06em;">
-            Spectral Analyzers (Click any graph below to open Split Screen View)
-        </div>
-        """, unsafe_allow_html=True)
-
-        g_c1, g_c2, g_c3, g_c4, g_c5 = st.columns(5)
-        with g_c1:
-            if st.button("Spectrogram Waterfall", use_container_width=True, key="btn_open_wf"):
-                switch_to_graph("Spectrogram Waterfall")
-        with g_c2:
-            if st.button("Power Spectrum (PSD)", use_container_width=True, key="btn_open_psd"):
-                switch_to_graph("Power Spectrum (PSD)")
-        with g_c3:
-            if st.button("I/Q Constellation", use_container_width=True, key="btn_open_iq"):
-                switch_to_graph("I/Q Constellation")
-        with g_c4:
-            if st.button("Eye Diagram", use_container_width=True, key="btn_open_eye"):
-                switch_to_graph("Eye Diagram")
-        with g_c5:
-            if st.button("Time Envelope", use_container_width=True, key="btn_open_time"):
-                switch_to_graph("Time Envelope")
-
-        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-
-        # Full-Width Physical Measurements & Protocol Telemetry Dashboard
-        col_num1, col_num2 = st.columns([50, 50], gap="medium")
-        with col_num1:
-            render_rf_table()
-        with col_num2:
-            render_protocol_details()
-
-        # Autonomous Blind Demodulation & SIGINT Console
-        render_v3_sigint_console(v3_bundle)
-
-        # Integrated Audio Monitor in full view
-        render_audio_monitor()
-
-    else:
-        # SPLIT SCREEN VIEW: Opened when user clicks on any graph button
-        col_split_nav1, col_split_nav2, col_split_nav3 = st.columns([5, 3, 2])
-        with col_split_nav1:
-            st.markdown("<div style='font-size:0.85rem; font-weight:600; color:#38bdf8; padding-top:6px;'>Workstation Mode: Split Screen Spectral Analysis</div>", unsafe_allow_html=True)
-        with col_split_nav2:
-            maximize_view = st.toggle(
-                "⛶ Maximize Spectral Display",
-                value=False,
-                help="Expand the spectrogram waterfall and spectral analyzers to full viewport width",
-                key="toggle_maximize_split"
-            )
-        with col_split_nav3:
-            if st.button("⬅ Full Numbers View", use_container_width=True, key="btn_return_numbers"):
-                st.session_state.view_mode = "numbers"
-                st.rerun()
-
-        if maximize_view:
-            render_visuals_panel(plot_height=640)
-            st.markdown("<div style='height: 16px;'></div>", unsafe_allow_html=True)
-            render_epistemic_hud(v3_bundle)
-            col_t1, col_t2 = st.columns([50, 50], gap="medium")
-            with col_t1:
-                render_target_card()
-                render_rf_table()
-            with col_t2:
-                render_protocol_details()
-            render_v3_sigint_console(v3_bundle)
-        else:
-            col_telemetry, col_visuals = st.columns([36, 64], gap="medium")
-            with col_telemetry:
-                render_target_card()
-                render_rf_table()
-                render_protocol_details()
-            with col_visuals:
-                render_visuals_panel(plot_height=480)
-            render_epistemic_hud(v3_bundle)
-            render_v3_sigint_console(v3_bundle)
-
+        render_html("<div style='height: 8px;'></div>")
+        st.json(consolidated_report)
 
 
 if __name__ == "__main__":

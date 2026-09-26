@@ -52,7 +52,11 @@ from .deinterleaving import search_interleaver_candidates
 from .fec import evaluate_fec_hypotheses
 from .framing import analyze_frames
 from .evidence import fuse_evidence
-from .contracts import EpistemicStatus, ConfidenceLevel
+from .contracts import EpistemicStatus, ConfidenceLevel, SignalHypothesis, BlindParameterVector
+from .temporal_validator import validate_temporal_consistency, TemporalValidationConfig
+from .blind_parameter_engine import extract_blind_parameters
+from .modulation_inference import infer_modulation_from_blind_params
+from .protocol_inference import infer_protocol_from_blind_params
 
 
 SPEED_OF_LIGHT = 299_792_458.0  # m/s
@@ -129,6 +133,58 @@ class PulsedRadarExtractor(BaseExtractor):
         }
 
 
+class ContinuousFmcwRadarExtractor(BaseExtractor):
+    """Extracts parameters for continuous/repeated frequency sweeps.
+
+    This path is selected from measured sweep geometry, not from a protocol
+    name.  It intentionally does not derive PRF from audio carrier ripple or
+    zero crossings; the primary timing observable is the macro sweep period.
+    """
+
+    def extract(
+        self,
+        signal: np.ndarray,
+        fs: float,
+        detection_meta: Dict[str, Any],
+        pulse_info: Dict[str, Any],
+        base_params: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        blind = base_params.get("blind_parameters", {}) or {}
+        chirp = blind.get("chirp_info", {}) or {}
+        bw_hz = max(1.0, float(base_params.get("bw_99pct_hz", 1000.0)))
+        repetition_hz = chirp.get("sweep_repetition_hz")
+        repetition_period = chirp.get("sweep_repetition_period_s")
+        if repetition_hz is None and repetition_period:
+            repetition_hz = 1.0 / float(repetition_period)
+        if repetition_hz is not None and float(repetition_hz) > 0:
+            repetition_hz = float(repetition_hz)
+            repetition_period = float(1.0 / repetition_hz)
+        else:
+            repetition_hz = None
+            repetition_period = None
+
+        return {
+            "extractor_pipeline": "ContinuousFmcwRadarExtractor",
+            "radar_mode_label": "Continuous frequency sweep",
+            "radar_sweep_repetition_hz": float(np.round(repetition_hz, 3)) if repetition_hz else None,
+            "radar_sweep_period_ms": float(np.round(repetition_period * 1000.0, 3)) if repetition_period else None,
+            "radar_chirp_slope_mhz_per_sec": float(np.round(float(chirp.get("chirp_rate_hz_per_sec", 0.0)) / 1e6, 3)),
+            "radar_chirp_bandwidth_hz": float(np.round(float(chirp.get("swept_bandwidth_hz", bw_hz)), 1)),
+            "radar_chirp_r2": float(np.round(float(chirp.get("r2", 0.0)), 3)),
+            "radar_pulse_width_us": None,
+            "radar_pri_us": None,
+            "radar_prf_hz": None,
+            "radar_duty_cycle_pct": None,
+            "radar_in_pulse_snr_db": None,
+            "radar_range_resolution_meters": float(np.round(SPEED_OF_LIGHT / (2.0 * bw_hz), 2)),
+            "radar_max_unambiguous_range_km": None,
+            "estimated_baud_rate_hz": None,
+            "baud_confidence": 0.0,
+            "baud_label": "N/A (Continuous frequency sweep; no symbol clock)",
+            "timing_primary_observable": "Macro sweep repetition",
+        }
+
+
 class FskExtractor(BaseExtractor):
     """Specialized extraction for FSK and AFSK protocols (NAVTEX, ASCII, Bell 202/APRS, POCSAG, RTTY)."""
 
@@ -150,14 +206,18 @@ class FskExtractor(BaseExtractor):
                 nominal_shift = detection_meta["tone_spacing_hz"]
 
         f_mark = detection_meta.get("mark_freq_hz")
-        if f_mark is None and nominal_shift is not None:
-            f_mark = base_params.get("fc_peak_hz", 0.0) - nominal_shift / 2.0
         f_space = detection_meta.get("space_freq_hz")
-        if f_space is None and nominal_shift is not None:
-            f_space = base_params.get("fc_peak_hz", 0.0) + nominal_shift / 2.0
+        if (f_mark is None or f_space is None) and "state_frequencies_hz" in base_params and len(base_params["state_frequencies_hz"]) == 2:
+            f_mark = float(base_params["state_frequencies_hz"][0])
+            f_space = float(base_params["state_frequencies_hz"][1])
+        elif f_mark is None and nominal_shift is not None:
+            center_fc = base_params.get("center_frequency_hz", base_params.get("energy_center_frequency_hz", base_params.get("spectral_centroid_hz", base_params.get("fc_peak_hz", 0.0))))
+            f_mark = center_fc - nominal_shift / 2.0
+            if f_space is None:
+                f_space = center_fc + nominal_shift / 2.0
 
-        nominal_baud = detection_meta.get("baud_rate_nominal")
-        symbol_dwell = detection_meta.get("symbol_dwell_ms")
+        nominal_baud = detection_meta.get("baud_rate_nominal", base_params.get("symbol_rate_consensus_hz"))
+        symbol_dwell = detection_meta.get("symbol_dwell_ms", base_params.get("symbol_dwell_time_ms"))
         carson_bw = detection_meta.get("carson_bandwidth_hz")
 
         if (nominal_baud is None or symbol_dwell is None) and nominal_shift is not None and f_mark is not None and f_space is not None:
@@ -526,6 +586,7 @@ class GenericFallbackExtractor(BaseExtractor):
 # Master Dispatcher Mapping
 EXTRACTOR_REGISTRY: Dict[str, BaseExtractor] = {
     "pulsed_radar": PulsedRadarExtractor(),
+    "continuous_fmcw_radar": ContinuousFmcwRadarExtractor(),
     "fsk_detector": FskExtractor(),
     "mfsk_comb": MfskExtractor(),
     "tdma_burst": TdmaBurstExtractor(),
@@ -623,6 +684,7 @@ class AdaptiveExtractionPipeline:
                 "confidence": 0.0,
                 "parameters": {},
                 "evidence": [err_msg],
+                "temporal_validation": validate_temporal_consistency(None, fs),
                 "reconstruction": None
             }
         signal = clean_sig
@@ -631,11 +693,30 @@ class AdaptiveExtractionPipeline:
         dc_free = remove_dc_offset(signal)
         norm_sig, avg_pwr = normalize_signal_power(dc_free)
 
+        # 1b. Multi-Window Temporal Validation
+        temporal_val = validate_temporal_consistency(norm_sig, fs)
+
+        # 1c. Layer A: Purely Blind Physical Parameter Extraction Engine (Upstream of Protocol Knowledge)
+        blind_params = extract_blind_parameters(norm_sig, fs)
+
+        # 1d. Layer B: Blind Modulation Inference Engine (From Blind Parameters & Morphology)
+        mod_infer = infer_modulation_from_blind_params(blind_params)
+
         # 2. Pulse Analysis (Structural Geometry)
         pulse_info = analyze_pulse_train(norm_sig, fs)
 
-        # 3. Autonomous Signal Classification
-        detection = detect_signal_autonomously(norm_sig, fs, pulse_info=pulse_info, file_name=fn)
+        # 3. Layer C: Protocol Inference Engine (Demoted Existing Invariant Rules)
+        detection = infer_protocol_from_blind_params(
+            blind_params,
+            mod_infer,
+            raw_signal=norm_sig,
+            fs=fs,
+            metadata=meta,
+            pulse_info=pulse_info,
+            temporal_result=temporal_val
+        )
+        detection["frequency_structure"] = blind_params.frequency_structure
+        detection["morphology_fingerprint"] = blind_params.morphology_fingerprint
 
         # Override class ID if explicitly provided by caller
         if override_class_id:
@@ -714,6 +795,23 @@ class AdaptiveExtractionPipeline:
             "audio_passband_artifact_detected": bool(is_audio and fs <= 96000.0),
             "fc_interpretation": fc_interp,
             "obw_interpretation": obw_interp,
+            "frequency_structure": blind_params.frequency_structure,
+            "dominant_component_frequencies": blind_params.dominant_component_frequencies,
+            "morphology_fingerprint": blind_params.morphology_fingerprint,
+            "parameter_consistency": blind_params.parameter_consistency,
+            "blindness_provenance": blind_params.blindness_provenance,
+            "symbol_rate_consensus_hz": blind_params.symbol_rate_consensus_hz,
+            "symbol_rate_consensus_method": blind_params.symbol_rate_consensus_method,
+            "symbol_rate_candidates": blind_params.symbol_rate_candidates,
+            "symbol_dwell_time_ms": blind_params.symbol_dwell_time_ms,
+            "cyclostationary_frequencies": blind_params.cyclostationary_frequencies,
+            "constellation_geometry": blind_params.constellation_geometry,
+            "frequency_hopping_info": blind_params.frequency_hopping_info,
+            "carrier_drift_info": blind_params.carrier_drift_info,
+            "signal_segments": blind_params.segments,
+            "state_frequencies_hz": list(blind_params.state_frequencies_hz),
+            "blind_parameters": blind_params.to_dict(),
+            "modulation_inference": mod_infer.to_dict(),
             **carrier_params,
             **bw_params,
             **stats_params
@@ -951,10 +1049,117 @@ class AdaptiveExtractionPipeline:
                 }
             }
 
+        # 7. Final Hypothesis Validation Gate
+        from .contracts import SignalHypothesis, ModulationFamily
+        from .validation_gate import run_validation_gate, ValidationGateConfig
+        winning_cand_dict = detection.get("winning_hypothesis")
+        winning_cand = SignalHypothesis.from_dict(winning_cand_dict) if winning_cand_dict else None
+
+        # If winning_cand is None, determine whether to construct a candidate from detection or handle noise/silence
+        if not winning_cand:
+            if not blind_params.signal_presence or detection.get("signal_class_id") == "UNKNOWN":
+                winning_cand = SignalHypothesis(
+                    hypothesis_id="HYP-NOISE-00",
+                    signal_family="NOISE",
+                    modulation=ModulationFamily.UNKNOWN_OOD,
+                    protocol="Stationary Gaussian Noise Floor",
+                    confidence=0.0,
+                    evidence_score=0.0,
+                    validation_status="ABSTAINED"
+                )
+            else:
+                is_ood_cand = bool(
+                    meta.get("is_ood", False)
+                    or detection.get("is_ood", False)
+                    or mod_infer.modulation_family == ModulationFamily.UNKNOWN_OOD
+                    or meta.get("scenario_key") == "UNKNOWN_OOD"
+                )
+                winning_cand = SignalHypothesis(
+                    hypothesis_id="HYP-BLIND-01",
+                    signal_family=str(detection.get("modulation_family", "UNKNOWN")),
+                    modulation=detection.get("modulation_family", "UNKNOWN"),
+                    protocol=detection.get("protocol_name", "Unknown Protocol"),
+                    confidence=float(detection.get("confidence", 0.5)),
+                    evidence_score=float(detection.get("confidence", 0.5)),
+                    temporal_consistency=float(temporal_val.get("composite_stability_index", 1.0)) if isinstance(temporal_val, dict) else 1.0,
+                    physical_consistency=1.0,
+                    is_ood=is_ood_cand,
+                    parameters=dict(merged_params)
+                )
+
+        if winning_cand:
+            winning_cand.parameters.update(merged_params)
+            if specialized_params:
+                winning_cand.parameters.update(specialized_params)
+        ranked_cands = [SignalHypothesis.from_dict(d) for d in detection.get("ranked_candidates", [])]
+        if not ranked_cands and winning_cand:
+            ranked_cands = [winning_cand]
+        for rc in ranked_cands:
+            rc.parameters.update(merged_params)
+            if specialized_params:
+                rc.parameters.update(specialized_params)
+
+        final_status, validated_winner, val_trace = run_validation_gate(
+            winner=winning_cand,
+            ranked_candidates=ranked_cands,
+            decision_status=detection.get("decision_status", "UNKNOWN"),
+            temporal_result=temporal_val,
+            pulse_info=pulse_info,
+            reconstruction_telemetry=reconstruction_telemetry,
+            specialized_params=specialized_params,
+            fs=fs,
+            config=ValidationGateConfig()
+        )
+
+        detection["final_decision"] = final_status
+        detection["final_status"] = final_status
+        detection["validation_status"] = final_status
+        detection["validation_trace"] = val_trace.to_dict()
+        detection["validation_gate"] = val_trace.to_dict()
+
+        # 8. Parameter Uncertainty & Epistemic Status Reporting Layer (Step 6 & 7)
+        from .parameter_uncertainty import build_parameter_uncertainty_report, get_verdict_explanation
+        is_crc_pass = False
+        try:
+            if isinstance(reconstruction_telemetry, dict):
+                framing_info = reconstruction_telemetry.get("framing", {})
+                is_crc_pass = bool(framing_info.get("crc_match", False))
+        except Exception:
+            is_crc_pass = False
+
+        param_uncertainty_report = build_parameter_uncertainty_report(
+            parameters=merged_params,
+            temporal_result=temporal_val,
+            validation_status=final_status,
+            fs=fs,
+            pulse_info=pulse_info,
+            specialized_params=specialized_params,
+            is_crc_valid=is_crc_pass
+        )
+
+        if validated_winner:
+            validated_winner.parameter_reports = dict(param_uncertainty_report)
+            for p_name, p_info in param_uncertainty_report.items():
+                if p_info.get("uncertainty") is not None:
+                    validated_winner.parameter_uncertainty[p_name] = float(p_info["uncertainty"])
+                if p_info.get("status"):
+                    try:
+                        validated_winner.parameter_status[p_name] = EpistemicStatus(p_info["status"])
+                    except Exception:
+                        pass
+            detection["winning_hypothesis"] = validated_winner.to_dict()
+
+        verdict_explanation = get_verdict_explanation(
+            verdict=final_status,
+            detection_meta=detection,
+            candidate_hypotheses=detection.get("ranked_candidates", []),
+            parameters=merged_params
+        )
+
         pipeline_status = "PARTIAL_SUCCESS" if failed_stage is not None else "SUCCESS"
         t_elapsed_ms = (time.perf_counter() - t_start) * 1000.0
 
-        is_abstained = bool(detection.get("abstained", detection.get("confidence", 1.0) == 0.0 or detection.get("signal_class_id") == "UNKNOWN"))
+        is_abstained = bool(detection.get("abstained", detection.get("confidence", 1.0) == 0.0 or detection.get("signal_class_id") == "UNKNOWN" or final_status == "NO SIGNAL / NOISE FLOOR"))
         evidence_quality = detection.get("evidence_quality")
         if not evidence_quality:
             conf = detection.get("confidence", 0.0)
@@ -969,10 +1174,40 @@ class AdaptiveExtractionPipeline:
             "execution_time_ms": float(np.round(t_elapsed_ms, 2)),
             "metadata": meta,
             "autonomous_detection": detection,
+            "detection": detection,
+            "candidate_hypotheses": detection.get("candidate_hypotheses", []),
+            "ranked_candidates": detection.get("ranked_candidates", []),
+            "contradiction_analysis": detection.get("contradiction_analysis", []),
+            "winning_hypothesis": detection.get("winning_hypothesis"),
+            "decision_status": detection.get("decision_status", "UNKNOWN"),
+            "final_decision": final_status,
+            "final_status": final_status,
+            "validation_status": final_status,
+            "validation_trace": val_trace.to_dict(),
+            "validation_gate": val_trace.to_dict(),
+            "verdict_explanation": verdict_explanation,
             "parameters": merged_params,
+            "parameter_uncertainties": param_uncertainty_report,
+            "parameter_reports": param_uncertainty_report,
+            "structured_parameters": param_uncertainty_report,
+            "parameter_status_report": param_uncertainty_report,
             "modulation_classification": mod_info,
             "pulse_analysis": pulse_info,
             "specialized_telemetry": specialized_params,
+            "blind_parameters": blind_params.to_dict(),
+            "blind_parameter_vector": blind_params.to_dict(),
+            "modulation_inference": mod_infer.to_dict(),
+            "waveform_morphology": blind_params.morphology_fingerprint,
+            "parameter_consistency": blind_params.parameter_consistency,
+            "blindness_provenance": blind_params.blindness_provenance,
+            "frequency_structure": blind_params.frequency_structure,
+            "symbol_rate_consensus": {
+                "consensus_rate_hz": blind_params.symbol_rate_consensus_hz,
+                "method": blind_params.symbol_rate_consensus_method,
+                "candidates": blind_params.symbol_rate_candidates
+            },
+            "signal_segments": blind_params.segments,
+            "temporal_validation": temporal_val,
             "reconstruction": reconstruction_telemetry,
             "evidence_report": reconstruction_telemetry.get("evidence_report", {}),
             "epistemic_hierarchy": reconstruction_telemetry.get("epistemic_hierarchy", {})

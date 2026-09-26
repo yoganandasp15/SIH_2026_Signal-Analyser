@@ -164,9 +164,9 @@ def analyze_intra_pulse_modulation(
     avg_dur = float(np.mean([len(p) for p in pulse_slices])) / fs if pulse_slices else 0.0
 
     # Linear Chirp Detection (FMOP):
-    # Significant frequency sweep bandwidth (>= 75 Hz), steep slope (|slope| > 1e4 Hz/s),
-    # OR high linear trajectory goodness-of-fit (R^2 >= 0.40 with |slope| > 5e3 Hz/s)
-    is_chirp = (med_r2 >= 0.25 and med_bw >= 75.0 and abs(med_slope) > 1e4) or (med_r2 >= 0.40 and abs(med_slope) > 5e3)
+    # Significant frequency sweep bandwidth (>= 75 Hz), steep slope (|slope| >= 1e4 Hz/s),
+    # with genuine linear trajectory goodness-of-fit (R^2 >= 0.35)
+    is_chirp = (med_r2 >= 0.35 and med_bw >= 75.0 and abs(med_slope) >= 1e4)
 
     # TDMA Comms Detection:
     # Requires frequency variance across symbol transitions without linear chirp
@@ -597,24 +597,32 @@ def analyze_pulse_train(
     # or receiver noise, NOT pulsed radar or digital TDMA bursts.
     is_verified_chirp_radar = bool(
         intra_mod.get("is_fmop_chirp", False) and
-        intra_mod.get("r2_goodness_of_fit", 0.0) >= 0.35 and
         intra_mod.get("chirp_bandwidth_hz", 0.0) >= 75.0 and
         abs(intra_mod.get("chirp_rate_hz_per_sec", 0.0)) >= 10000.0 and
         (
             bool(matched_frame and "Radar" in matched_frame) or
-            (mean_pw_s >= 800e-6 and duty_cycle < 35.0 and intra_mod.get("r2_goodness_of_fit", 0.0) >= 0.50)
+            (
+                mean_pw_s >= 100e-6 and
+                duty_cycle < 30.0 and
+                intra_mod.get("r2_goodness_of_fit", 0.0) >= 0.55 and
+                snr_data.get("pulsed_snr_db", 0.0) >= 5.0
+            )
         )
     )
     is_audio_ripple = (
         fs <= 96000.0 and
         not is_standard_tdma and
+        not intra_mod.get("is_tdma_comms", False) and
         not is_verified_chirp_radar and
         (
             (mean_pw_s < 1500e-6 and len(pulse_widths) > 100) or
-            (len(pulse_widths) > 500 and duty_cycle < 60.0 and not (is_verified_chirp_radar and duty_cycle < 15.0))
+            (len(pulse_widths) > 500 and duty_cycle < 60.0)
         )
     )
     if is_audio_ripple:
+        audio_intra = dict(intra_mod)
+        audio_intra["is_fmop_chirp"] = False
+        audio_intra["intra_pulse_mod"] = "Unmodulated Audio / Continuous Tone"
         return {
             "is_pulsed": False,
             "is_radar": False,
@@ -628,7 +636,7 @@ def analyze_pulse_train(
             "duty_cycle_pct": 100.0,
             "pulsed_snr_db": snr_data["pulsed_snr_db"],
             "multi_rate_prf": eac_prf_info,
-            "intra_pulse_modulation": intra_mod,
+            "intra_pulse_modulation": audio_intra,
             "signal_mode": "Continuous Transmission (Non-Pulsed)"
         }
 
@@ -659,7 +667,7 @@ def analyze_pulse_train(
     is_radar = (not is_standard_tdma) and (
         is_verified_chirp_radar or
         bool(matched_frame and "Radar" in matched_frame and intra_mod.get("intra_pulse_mod") == "Pulsed CW (Unmodulated Carrier)" and snr_data["pulsed_snr_db"] >= 3.0) or
-        (intra_mod.get("is_fmop_chirp", False) and intra_mod.get("chirp_bandwidth_hz", 0.0) >= 75.0 and duty_cycle < 65.0 and snr_data["pulsed_snr_db"] >= 2.0 and intra_mod.get("r2_goodness_of_fit", 0.0) >= 0.35 and (bool(matched_frame and "Radar" in matched_frame) or mean_pw_s >= 800e-6)) or
+        (intra_mod.get("is_fmop_chirp", False) and intra_mod.get("chirp_bandwidth_hz", 0.0) >= 75.0 and duty_cycle < 85.0 and snr_data["pulsed_snr_db"] >= 2.0 and intra_mod.get("r2_goodness_of_fit", 0.0) >= 0.35 and (bool(matched_frame and "Radar" in matched_frame) or mean_pw_s >= 800e-6)) or
         is_short_radar or
         is_sparse_radar
     )

@@ -8,26 +8,26 @@
     "signal_nature": "Tactical HF Data / Handshake Protocol (2G ALE)",
     "snr_db": 42.0,
     "snr_valid": true,
-    "fc_peak_hz": 753.662109375,
+    "fc_peak_hz": 761.61,
     "bw_99pct_hz": 2110.25,
     "telemetry": "Baud=125.0 Baud",
     "mod_match": true,
-    "runtime_ms": 1302.86519999936
+    "runtime_ms": 1835.3895000036573
   },
   {
     "file": "AIS.wav",
     "ground_truth_mode": "TDMA GMSK 9600 Baud",
-    "detected_protocol": "Pulsed FMOP (Linear FM Up-Chirp / Ionospheric Sounder / HAARP)",
-    "modulation_family": "Pulsed Radar (FMOP)",
-    "confidence": 0.98,
-    "signal_nature": "Pulsed Radar / OTH Intercept",
-    "snr_db": 4.36,
+    "detected_protocol": "TDMA Digital Burst (GMSK / Maritime AIS 9600 Baud)",
+    "modulation_family": "GMSK (TDMA)",
+    "confidence": 0.97,
+    "signal_nature": "Continuous Transmission (Non-Pulsed)",
+    "snr_db": -0.17,
     "snr_valid": true,
-    "fc_peak_hz": 667.529296875,
+    "fc_peak_hz": 662.93,
     "bw_99pct_hz": 14879.44,
-    "telemetry": "PRF=298.0 Hz",
-    "mod_match": false,
-    "runtime_ms": 1375.2548000002207
+    "telemetry": "Baud=9.6 kBaud",
+    "mod_match": true,
+    "runtime_ms": 2099.145000000135
   },
   {
     "file": "AIST-2D.wav",
@@ -38,26 +38,26 @@
     "signal_nature": "Satellite Telemetry / Subcarrier Burst (PCM/PM)",
     "snr_db": 42.0,
     "snr_valid": true,
-    "fc_peak_hz": 2390.625,
+    "fc_peak_hz": 2400.06,
     "bw_99pct_hz": 18140.62,
     "telemetry": "Sub=2402.3 Hz",
     "mod_match": true,
-    "runtime_ms": 1434.6439000000828
+    "runtime_ms": 2051.0600000125123
   },
   {
     "file": "APRS.wav",
     "ground_truth_mode": "Bell 202 AFSK 1200 Baud",
-    "detected_protocol": "Pulsed FMOP (Linear FM Down-Chirp / Ionospheric Sounder / HAARP)",
-    "modulation_family": "Pulsed Radar (FMOP)",
+    "detected_protocol": "2-FSK / AFSK (Bell 202 / APRS Packet Data)",
+    "modulation_family": "AFSK (Bell 202)",
     "confidence": 0.98,
-    "signal_nature": "Pulsed Radar / OTH Intercept",
-    "snr_db": 4.53,
+    "signal_nature": "Continuous Transmission (Non-Pulsed)",
+    "snr_db": 2.46,
     "snr_valid": true,
-    "fc_peak_hz": 1098.193359375,
+    "fc_peak_hz": 1103.41,
     "bw_99pct_hz": 9194.68,
-    "telemetry": "PRF=84.3 Hz",
-    "mod_match": false,
-    "runtime_ms": 1350.6328999992547
+    "telemetry": "Baud=1.2 kBaud",
+    "mod_match": true,
+    "runtime_ms": 2151.2223000027006
   },
   {
     "file": "ASCII.wav",
@@ -68,11 +68,11 @@
     "signal_nature": "Continuous Transmission (Non-Pulsed)",
     "snr_db": 17.55,
     "snr_valid": true,
-    "fc_peak_hz": 818.26171875,
+    "fc_peak_hz": 826.26,
     "bw_99pct_hz": 323.0,
     "telemetry": "Baud=110.0 Baud",
     "mod_match": true,
-    "runtime_ms": 1364.0864999997575
+    "runtime_ms": 1764.6682000049623
   },
   {
     "file": "CODAR.wav",
@@ -80,14 +80,14 @@
     "detected_protocol": "FMCW Radar (Oceanographic / CODAR SeaSonde HF Sweep)",
     "modulation_family": "FMCW Radar",
     "confidence": 0.98,
-    "signal_nature": "Pulsed Radar / OTH Intercept",
-    "snr_db": 10.99,
+    "signal_nature": "Continuous Transmission (Non-Pulsed)",
+    "snr_db": 10.93,
     "snr_valid": true,
-    "fc_peak_hz": 2045.654296875,
+    "fc_peak_hz": 2039.08,
     "bw_99pct_hz": 3294.58,
-    "telemetry": "PRF=228.5 Hz",
+    "telemetry": "PRF=0.0 Hz",
     "mod_match": true,
-    "runtime_ms": 1503.2304999995176
+    "runtime_ms": 2110.607599999639
   },
   {
     "file": "D-STAR.wav",
@@ -95,29 +95,29 @@
     "detected_protocol": "Digital GMSK (D-STAR Amateur Digital Voice 4800 Baud)",
     "modulation_family": "GMSK",
     "confidence": 0.95,
-    "signal_nature": "Continuous Transmission (Non-Pulsed)",
+    "signal_nature": "Pulsed Radar / OTH Intercept",
     "snr_db": 42.0,
     "snr_valid": true,
-    "fc_peak_hz": 43.06640625,
+    "fc_peak_hz": 47.58,
     "bw_99pct_hz": 10099.07,
     "telemetry": "Baud=4.8 kBaud",
     "mod_match": true,
-    "runtime_ms": 1407.2056999993947
+    "runtime_ms": 2004.2945000022883
   },
   {
     "file": "DMR.wav",
     "ground_truth_mode": "4-FSK TDMA 30ms slot 4800 Baud",
-    "detected_protocol": "Pulsed FMOP (Linear FM Up-Chirp / Ionospheric Sounder / HAARP)",
-    "modulation_family": "Pulsed Radar (FMOP)",
+    "detected_protocol": "TDMA Mobile Radio (DMR 4-FSK / TDMA)",
+    "modulation_family": "4-FSK (TDMA)",
     "confidence": 0.98,
-    "signal_nature": "Pulsed Radar / OTH Intercept",
-    "snr_db": 3.63,
+    "signal_nature": "TDMA Cellular / Digital Burst (GSM/DMR)",
+    "snr_db": 3.54,
     "snr_valid": true,
-    "fc_peak_hz": 968.994140625,
+    "fc_peak_hz": 964.7,
     "bw_99pct_hz": 9173.14,
-    "telemetry": "PRF=33.3 Hz",
-    "mod_match": false,
-    "runtime_ms": 1684.17319999935
+    "telemetry": "Baud=4.8 kBaud",
+    "mod_match": true,
+    "runtime_ms": 2375.745800003642
   },
   {
     "file": "FT8.wav",
@@ -128,11 +128,11 @@
     "signal_nature": "Continuous Transmission (Non-Pulsed)",
     "snr_db": 42.0,
     "snr_valid": true,
-    "fc_peak_hz": 1507.32421875,
+    "fc_peak_hz": 1517.63,
     "bw_99pct_hz": 64.6,
     "telemetry": "Baud=6.2 Baud",
     "mod_match": true,
-    "runtime_ms": 1576.987299999928
+    "runtime_ms": 1960.8712999906857
   },
   {
     "file": "GRAVES_Radar.wav",
@@ -143,11 +143,11 @@
     "signal_nature": "Packetized Burst Signal",
     "snr_db": 3.92,
     "snr_valid": true,
-    "fc_peak_hz": 21.533203125,
+    "fc_peak_hz": 23.5,
     "bw_99pct_hz": 236.87,
     "telemetry": "PRF=51.2 Hz",
     "mod_match": true,
-    "runtime_ms": 915.6057999998666
+    "runtime_ms": 1354.2387000052258
   },
   {
     "file": "GSM_BCCH_Downlink.wav",
@@ -158,11 +158,11 @@
     "signal_nature": "Continuous Transmission (Non-Pulsed)",
     "snr_db": 42.0,
     "snr_valid": true,
-    "fc_peak_hz": 5206.9951171875,
+    "fc_peak_hz": 5199.72,
     "bw_99pct_hz": 18768.07,
     "telemetry": "Baud=270.8 kBaud",
     "mod_match": true,
-    "runtime_ms": 1258.4424000006038
+    "runtime_ms": 2012.1547000017017
   },
   {
     "file": "Ghadir_Radar.wav",
@@ -171,28 +171,28 @@
     "modulation_family": "Pulsed Radar (FMOP)",
     "confidence": 0.99,
     "signal_nature": "Pulsed Radar / OTH Intercept",
-    "snr_db": 12.2,
+    "snr_db": 11.99,
     "snr_valid": true,
-    "fc_peak_hz": 1744.189453125,
+    "fc_peak_hz": 1739.44,
     "bw_99pct_hz": 10077.54,
     "telemetry": "PRF=300.0 Hz",
     "mod_match": true,
-    "runtime_ms": 990.3124000002208
+    "runtime_ms": 1618.2132999965688
   },
   {
     "file": "HAARP-1.wav",
     "ground_truth_mode": "HAARP HF Ionospheric Sounder / FMCW Chirp Radar",
-    "detected_protocol": "Pulsed FMOP (Linear FM Down-Chirp / Ionospheric Sounder / HAARP)",
+    "detected_protocol": "Pulsed FMOP (Linear FM Up-Chirp / Ionospheric Sounder / HAARP)",
     "modulation_family": "Pulsed Radar (FMOP)",
     "confidence": 0.98,
     "signal_nature": "Pulsed Radar / OTH Intercept",
-    "snr_db": 7.82,
+    "snr_db": 9.92,
     "snr_valid": true,
-    "fc_peak_hz": 1227.392578125,
+    "fc_peak_hz": 1225.22,
     "bw_99pct_hz": 2304.05,
     "telemetry": "PRF=33.2 Hz",
     "mod_match": true,
-    "runtime_ms": 1192.9181000004974
+    "runtime_ms": 1743.8805999991018
   },
   {
     "file": "MFSK16.wav",
@@ -203,26 +203,26 @@
     "signal_nature": "Continuous Transmission (Non-Pulsed)",
     "snr_db": 42.0,
     "snr_valid": true,
-    "fc_peak_hz": 1507.32421875,
+    "fc_peak_hz": 1506.14,
     "bw_99pct_hz": 279.93,
     "telemetry": "Baud=15.6 Baud",
     "mod_match": true,
-    "runtime_ms": 1428.3360000008543
+    "runtime_ms": 2037.8378000023076
   },
   {
     "file": "Morse_Code.wav",
     "ground_truth_mode": "CW / On-Off Keying (A1A Morse)",
-    "detected_protocol": "Pulsed Radar (FMOP Up-Chirp)",
-    "modulation_family": "Pulsed Radar",
-    "confidence": 0.95,
-    "signal_nature": "Pulsed Radar / OTH Intercept",
-    "snr_db": 16.78,
+    "detected_protocol": "CW / Morse Code (On-Off Keying / OOK / A1A)",
+    "modulation_family": "CW / OOK (Morse)",
+    "confidence": 0.98,
+    "signal_nature": "Packetized Burst Signal",
+    "snr_db": 42.0,
     "snr_valid": true,
-    "fc_peak_hz": 796.728515625,
+    "fc_peak_hz": 786.74,
     "bw_99pct_hz": 646.0,
-    "telemetry": "PRF=5.8 Hz",
-    "mod_match": false,
-    "runtime_ms": 1108.897799999795
+    "telemetry": "28.5 WPM",
+    "mod_match": true,
+    "runtime_ms": 1603.3064999937778
   },
   {
     "file": "NAVTEX.wav",
@@ -233,11 +233,11 @@
     "signal_nature": "Continuous Transmission (Non-Pulsed)",
     "snr_db": 7.4,
     "snr_valid": true,
-    "fc_peak_hz": 2131.787109375,
+    "fc_peak_hz": 2125.01,
     "bw_99pct_hz": 344.53,
     "telemetry": "Baud=100.0 Baud",
     "mod_match": true,
-    "runtime_ms": 897.5689999997485
+    "runtime_ms": 1466.1310999945272
   },
   {
     "file": "OTH_SW_Radar.wav",
@@ -246,13 +246,13 @@
     "modulation_family": "Pulsed Radar (FMOP)",
     "confidence": 0.99,
     "signal_nature": "Pulsed Radar / OTH Intercept",
-    "snr_db": 10.45,
+    "snr_db": 10.42,
     "snr_valid": true,
-    "fc_peak_hz": 43.06640625,
+    "fc_peak_hz": 45.46,
     "bw_99pct_hz": 6007.76,
     "telemetry": "PRF=43.2 Hz",
     "mod_match": true,
-    "runtime_ms": 1692.0673999993596
+    "runtime_ms": 2329.7266000008676
   },
   {
     "file": "POCSAG.wav",
@@ -263,11 +263,11 @@
     "signal_nature": "Continuous Transmission (Non-Pulsed)",
     "snr_db": 42.0,
     "snr_valid": true,
-    "fc_peak_hz": 796.728515625,
+    "fc_peak_hz": 799.51,
     "bw_99pct_hz": 16580.57,
-    "telemetry": "Baud=7.6 kBaud",
+    "telemetry": "Baud=1.2 kBaud",
     "mod_match": true,
-    "runtime_ms": 1773.5797000004823
+    "runtime_ms": 2354.0509000013117
   },
   {
     "file": "PSK31.wav",
@@ -278,11 +278,11 @@
     "signal_nature": "Continuous Transmission (Non-Pulsed)",
     "snr_db": 7.97,
     "snr_valid": true,
-    "fc_peak_hz": 1507.32421875,
+    "fc_peak_hz": 1499.89,
     "bw_99pct_hz": 64.6,
     "telemetry": "Baud=31.2 Baud",
     "mod_match": true,
-    "runtime_ms": 1176.23950000052
+    "runtime_ms": 1684.6687999932328
   },
   {
     "file": "RTTY.wav",
@@ -293,11 +293,11 @@
     "signal_nature": "Continuous Transmission (Non-Pulsed)",
     "snr_db": 15.86,
     "snr_valid": true,
-    "fc_peak_hz": 1098.193359375,
+    "fc_peak_hz": 1094.73,
     "bw_99pct_hz": 258.4,
     "telemetry": "Baud=45.5 Baud",
     "mod_match": true,
-    "runtime_ms": 1333.0001999993328
+    "runtime_ms": 1829.2134000075748
   },
   {
     "file": "STANAG_4285.wav",
@@ -305,44 +305,44 @@
     "detected_protocol": "8-PSK (NATO Naval Tactical HF / STANAG 4285)",
     "modulation_family": "8-PSK",
     "confidence": 0.97,
-    "signal_nature": "Pulsed Radar / OTH Intercept",
+    "signal_nature": "Continuous Transmission (Non-Pulsed)",
     "snr_db": 5.14,
     "snr_valid": true,
-    "fc_peak_hz": 2196.38671875,
+    "fc_peak_hz": 2194.74,
     "bw_99pct_hz": 2433.25,
     "telemetry": "Baud=2.4 kBaud",
     "mod_match": true,
-    "runtime_ms": 1705.7151999997586
+    "runtime_ms": 2379.6861000009812
   },
   {
     "file": "UVB76_Buzzer.wav",
     "ground_truth_mode": "UVB-76 The Buzzer Channel Marker / Voice",
-    "detected_protocol": "Unknown / Novel Signal",
-    "modulation_family": "Unknown",
-    "confidence": 0.0,
-    "signal_nature": "Continuous Transmission (Non-Pulsed)",
-    "snr_db": 42.0,
+    "detected_protocol": "Analog (NFM / Voice & Variometer Tones)",
+    "modulation_family": "Analog Voice / NFM",
+    "confidence": 0.98,
+    "signal_nature": "Packetized Digital Burst Signal",
+    "snr_db": 18.07,
     "snr_valid": true,
-    "fc_peak_hz": 559.86328125,
+    "fc_peak_hz": 563.39,
     "bw_99pct_hz": 5071.07,
-    "telemetry": "Baud=703.5 Baud",
-    "mod_match": false,
-    "runtime_ms": 2782.6451999999335
+    "telemetry": "Baud=N/A (Analog Voice / Audio Signal - Harmonic Suppressed)",
+    "mod_match": true,
+    "runtime_ms": 3610.3211999870837
   },
   {
     "file": "Vario_Voice_Tone.wav",
     "ground_truth_mode": "NFM Voice & Variometer Audio Tones",
-    "detected_protocol": "Pulsed FMOP (Linear FM Down-Chirp / Ionospheric Sounder / HAARP)",
-    "modulation_family": "Pulsed Radar (FMOP)",
+    "detected_protocol": "Analog (NFM / Voice & Variometer Tones)",
+    "modulation_family": "Analog Voice / NFM",
     "confidence": 0.98,
-    "signal_nature": "Pulsed Radar / OTH Intercept",
-    "snr_db": 6.83,
+    "signal_nature": "Continuous Transmission (Non-Pulsed)",
+    "snr_db": 23.49,
     "snr_valid": true,
-    "fc_peak_hz": 849.609375,
+    "fc_peak_hz": 847.52,
     "bw_99pct_hz": 3093.75,
-    "telemetry": "PRF=260.9 Hz",
-    "mod_match": false,
-    "runtime_ms": 1384.4875000004322
+    "telemetry": "Baud=N/A (Analog Voice / Audio Signal - Harmonic Suppressed)",
+    "mod_match": true,
+    "runtime_ms": 2063.2459000044037
   },
   {
     "file": "WEFAX.wav",
@@ -350,14 +350,14 @@
     "detected_protocol": "Analog Facsimile (Weather Fax / WEFAX / FM)",
     "modulation_family": "Analog Facsimile (WEFAX)",
     "confidence": 0.97,
-    "signal_nature": "Pulsed Radar / OTH Intercept",
+    "signal_nature": "Continuous Transmission (Non-Pulsed)",
     "snr_db": 2.17,
     "snr_valid": true,
-    "fc_peak_hz": 2282.51953125,
+    "fc_peak_hz": 2293.25,
     "bw_99pct_hz": 1981.05,
     "telemetry": "120 LPM",
     "mod_match": true,
-    "runtime_ms": 1178.3035000007658
+    "runtime_ms": 1987.8562000085367
   },
   {
     "file": "Woodpecker_Duga.wav",
@@ -366,12 +366,12 @@
     "modulation_family": "Pulsed Radar",
     "confidence": 0.99,
     "signal_nature": "Continuous Transmission (Non-Pulsed)",
-    "snr_db": 13.2,
+    "snr_db": 13.11,
     "snr_valid": true,
-    "fc_peak_hz": 645.99609375,
+    "fc_peak_hz": 642.81,
     "bw_99pct_hz": 4629.64,
     "telemetry": "PRF=0.0 Hz",
     "mod_match": true,
-    "runtime_ms": 1327.8742999991664
+    "runtime_ms": 2029.7169999976177
   }
 ]

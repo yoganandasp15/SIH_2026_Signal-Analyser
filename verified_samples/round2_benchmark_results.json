@@ -1,0 +1,450 @@
+{
+  "timestamp": "2026-09-26T03:52:56Z",
+  "total_test_cases": 44,
+  "metrics": {
+    "known_signal_accuracy_pct": 100.0,
+    "false_positive_rate_pct": 0.0,
+    "ood_rejection_rate_pct": 50.0,
+    "ambiguity_detection_rate_pct": 100.0,
+    "graceful_degradation_rate_pct": 66.66666666666666,
+    "symbol_rate_mae_baud": 0.0,
+    "symbol_rate_rmse_baud": 0.0,
+    "avg_latency_ms": 1859.2529676177285,
+    "throughput_ksps": 97.75580397279177,
+    "total_benchmark_time_seconds": 82.23002290725708
+  },
+  "category_results": {
+    "A_KNOWN": [
+      {
+        "name": "AIS.wav",
+        "ground_truth": "AIS",
+        "predicted_protocol": "TDMA Digital Burst (GMSK / Maritime AIS 9600 Baud)",
+        "matched": true,
+        "decision": "ESTIMATED",
+        "confidence": 0.97,
+        "snr_db": -0.17,
+        "latency_ms": 2015.4979228973389,
+        "samples": 250000
+      },
+      {
+        "name": "AIST-2D.wav",
+        "ground_truth": "AIST",
+        "predicted_protocol": "PCM/PM Telemetry (Satellite Beacon / AIST-2D RS-48)",
+        "matched": true,
+        "decision": "VALIDATED",
+        "confidence": 0.98,
+        "snr_db": 42.0,
+        "latency_ms": 2923.2964515686035,
+        "samples": 250000
+      },
+      {
+        "name": "APRS.wav",
+        "ground_truth": "APRS",
+        "predicted_protocol": "2-FSK / AFSK (Bell 202 / APRS Packet Data)",
+        "matched": true,
+        "decision": "VALIDATED",
+        "confidence": 0.98,
+        "snr_db": 2.46,
+        "latency_ms": 3083.653688430786,
+        "samples": 250000
+      },
+      {
+        "name": "ASCII.wav",
+        "ground_truth": "ASCII",
+        "predicted_protocol": "2-FSK (ASCII / ITA-5 110 Baud)",
+        "matched": true,
+        "decision": "VALIDATED",
+        "confidence": 0.98,
+        "snr_db": 17.55,
+        "latency_ms": 2631.8302154541016,
+        "samples": 250000
+      },
+      {
+        "name": "CODAR.wav",
+        "ground_truth": "CODAR",
+        "predicted_protocol": "FMCW Radar (Oceanographic / CODAR SeaSonde HF Sweep)",
+        "matched": true,
+        "decision": "VALIDATED",
+        "confidence": 0.98,
+        "snr_db": 42.0,
+        "latency_ms": 3081.7019939422607,
+        "samples": 250000
+      },
+      {
+        "name": "D-STAR.wav",
+        "ground_truth": "D-STAR",
+        "predicted_protocol": "Digital GMSK (D-STAR Amateur Digital Voice 4800 Baud)",
+        "matched": true,
+        "decision": "ESTIMATED",
+        "confidence": 0.95,
+        "snr_db": 42.0,
+        "latency_ms": 2246.9000816345215,
+        "samples": 250000
+      },
+      {
+        "name": "DMR.wav",
+        "ground_truth": "DMR",
+        "predicted_protocol": "TDMA Mobile Radio (DMR 4-FSK / TDMA)",
+        "matched": true,
+        "decision": "ESTIMATED",
+        "confidence": 0.98,
+        "snr_db": 3.54,
+        "latency_ms": 2483.976364135742,
+        "samples": 250000
+      },
+      {
+        "name": "FT8.wav",
+        "ground_truth": "FT8",
+        "predicted_protocol": "8-FSK / M-FSK (Amateur Weak-Signal Mode / FT8)",
+        "matched": true,
+        "decision": "VALIDATED",
+        "confidence": 0.98,
+        "snr_db": 42.0,
+        "latency_ms": 2050.4257678985596,
+        "samples": 250000
+      },
+      {
+        "name": "GRAVES_Radar.wav",
+        "ground_truth": "GRAVES",
+        "predicted_protocol": "Pulsed CW / Reflection (GRAVES Space Surveillance Radar 143.050 MHz)",
+        "matched": true,
+        "decision": "VALIDATED",
+        "confidence": 0.98,
+        "snr_db": 3.92,
+        "latency_ms": 1473.3073711395264,
+        "samples": 250000
+      },
+      {
+        "name": "GSM_BCCH_Downlink.wav",
+        "ground_truth": "GSM",
+        "predicted_protocol": "TDMA Cellular (GSM GMSK / Cellular Downlink)",
+        "matched": true,
+        "decision": "ESTIMATED",
+        "confidence": 0.98,
+        "snr_db": 42.0,
+        "latency_ms": 2119.7237968444824,
+        "samples": 250000
+      },
+      {
+        "name": "Ghadir_Radar.wav",
+        "ground_truth": "Ghadir",
+        "predicted_protocol": "Pulsed FMOP (Linear FM Down-Chirp / Ghadir OTH Radar Sweep)",
+        "matched": true,
+        "decision": "ESTIMATED",
+        "confidence": 0.99,
+        "snr_db": 11.99,
+        "latency_ms": 1703.0141353607178,
+        "samples": 250000
+      },
+      {
+        "name": "HAARP-1.wav",
+        "ground_truth": "HAARP",
+        "predicted_protocol": "Pulsed FMOP (Linear FM Up-Chirp / Ionospheric Sounder / HAARP)",
+        "matched": true,
+        "decision": "ESTIMATED",
+        "confidence": 0.98,
+        "snr_db": 9.92,
+        "latency_ms": 1835.8330726623535,
+        "samples": 250000
+      },
+      {
+        "name": "MFSK16.wav",
+        "ground_truth": "MFSK16",
+        "predicted_protocol": "16-Tone MFSK (Amateur / Tactical HF MFSK16)",
+        "matched": true,
+        "decision": "VALIDATED",
+        "confidence": 0.97,
+        "snr_db": 42.0,
+        "latency_ms": 1984.3218326568604,
+        "samples": 250000
+      },
+      {
+        "name": "Morse_Code.wav",
+        "ground_truth": "Morse",
+        "predicted_protocol": "CW / Morse Code (On-Off Keying / OOK / A1A)",
+        "matched": true,
+        "decision": "VALIDATED",
+        "confidence": 0.98,
+        "snr_db": 42.0,
+        "latency_ms": 1719.6054458618164,
+        "samples": 250000
+      },
+      {
+        "name": "NAVTEX.wav",
+        "ground_truth": "NAVTEX",
+        "predicted_protocol": "2-FSK (170 Hz Shift / NAVTEX / SITOR-B)",
+        "matched": true,
+        "decision": "VALIDATED",
+        "confidence": 0.98,
+        "snr_db": 7.4,
+        "latency_ms": 1547.3663806915283,
+        "samples": 250000
+      },
+      {
+        "name": "OTH_SW_Radar.wav",
+        "ground_truth": "OTH-SW",
+        "predicted_protocol": "Pulsed FMOP (Linear FM Down-Chirp / OTH-SW Radar Sweep)",
+        "matched": true,
+        "decision": "ESTIMATED",
+        "confidence": 0.99,
+        "snr_db": 10.42,
+        "latency_ms": 2431.5388202667236,
+        "samples": 250000
+      },
+      {
+        "name": "POCSAG.wav",
+        "ground_truth": "POCSAG",
+        "predicted_protocol": "2-FSK (Baseband Paging / POCSAG 1200 Baud)",
+        "matched": true,
+        "decision": "ESTIMATED",
+        "confidence": 0.97,
+        "snr_db": 42.0,
+        "latency_ms": 2403.702735900879,
+        "samples": 250000
+      },
+      {
+        "name": "PSK31.wav",
+        "ground_truth": "PSK31",
+        "predicted_protocol": "BPSK (Amateur PSK31 / Binary Phase Shift Keying)",
+        "matched": true,
+        "decision": "VALIDATED",
+        "confidence": 0.98,
+        "snr_db": 7.97,
+        "latency_ms": 1778.7349224090576,
+        "samples": 250000
+      },
+      {
+        "name": "RTTY.wav",
+        "ground_truth": "RTTY",
+        "predicted_protocol": "2-FSK (Radioteletype / RTTY / Baudot 45.45 Baud)",
+        "matched": true,
+        "decision": "VALIDATED",
+        "confidence": 0.98,
+        "snr_db": 15.86,
+        "latency_ms": 1904.6342372894287,
+        "samples": 250000
+      },
+      {
+        "name": "STANAG_4285.wav",
+        "ground_truth": "STANAG",
+        "predicted_protocol": "8-PSK (NATO Naval Tactical HF / STANAG 4285)",
+        "matched": true,
+        "decision": "VALIDATED",
+        "confidence": 0.97,
+        "snr_db": 5.14,
+        "latency_ms": 2579.115390777588,
+        "samples": 250000
+      },
+      {
+        "name": "UVB76_Buzzer.wav",
+        "ground_truth": "Voice",
+        "predicted_protocol": "Analog (NFM / Voice & Variometer Tones)",
+        "matched": true,
+        "decision": "VALIDATED",
+        "confidence": 0.98,
+        "snr_db": 18.07,
+        "latency_ms": 3718.6026573181152,
+        "samples": 206462
+      },
+      {
+        "name": "Vario_Voice_Tone.wav",
+        "ground_truth": "Voice",
+        "predicted_protocol": "Analog (NFM / Voice & Variometer Tones)",
+        "matched": true,
+        "decision": "VALIDATED",
+        "confidence": 0.98,
+        "snr_db": 23.49,
+        "latency_ms": 2047.7185249328613,
+        "samples": 250000
+      },
+      {
+        "name": "WEFAX.wav",
+        "ground_truth": "WEFAX",
+        "predicted_protocol": "Analog Facsimile (Weather Fax / WEFAX / FM)",
+        "matched": true,
+        "decision": "VALIDATED",
+        "confidence": 0.97,
+        "snr_db": 2.17,
+        "latency_ms": 1799.659252166748,
+        "samples": 250000
+      },
+      {
+        "name": "Woodpecker_Duga.wav",
+        "ground_truth": "Woodpecker",
+        "predicted_protocol": "Pulsed Radar (Russian Woodpecker / Duga 10 Hz PRF OTH Radar)",
+        "matched": true,
+        "decision": "ESTIMATED",
+        "confidence": 0.99,
+        "snr_db": 13.11,
+        "latency_ms": 1993.976354598999,
+        "samples": 250000
+      }
+    ],
+    "B_NOISE": [
+      {
+        "name": "Noise_Realization_101",
+        "decision": "NO SIGNAL / NOISE FLOOR",
+        "protocol": "Noise Floor / Stationary Gaussian Noise",
+        "rejected": true,
+        "false_alarm": false,
+        "latency_ms": 1071.3427066802979
+      },
+      {
+        "name": "Noise_Realization_202",
+        "decision": "NO SIGNAL / NOISE FLOOR",
+        "protocol": "Noise Floor / Stationary Gaussian Noise",
+        "rejected": true,
+        "false_alarm": false,
+        "latency_ms": 983.3452701568604
+      },
+      {
+        "name": "Noise_Realization_303",
+        "decision": "NO SIGNAL / NOISE FLOOR",
+        "protocol": "Noise Floor / Stationary Gaussian Noise",
+        "rejected": true,
+        "false_alarm": false,
+        "latency_ms": 949.3188858032227
+      },
+      {
+        "name": "Noise_Realization_404",
+        "decision": "NO SIGNAL / NOISE FLOOR",
+        "protocol": "Noise Floor / Stationary Gaussian Noise",
+        "rejected": true,
+        "false_alarm": false,
+        "latency_ms": 1361.5140914916992
+      },
+      {
+        "name": "Noise_Realization_505",
+        "decision": "NO SIGNAL / NOISE FLOOR",
+        "protocol": "Noise Floor / Stationary Gaussian Noise",
+        "rejected": true,
+        "false_alarm": false,
+        "latency_ms": 1043.0080890655518
+      }
+    ],
+    "C_LOW_SNR": [
+      {
+        "name": "AIS.wav",
+        "target_snr_db": -0.2,
+        "estimated_snr_db": 3.38,
+        "decision": "ESTIMATED",
+        "protocol": "Pulsed FMOP (Linear FM Up-Chirp / Ionospheric Sounder / HAARP)",
+        "latency_ms": 1938.6119842529297
+      },
+      {
+        "name": "WEFAX.wav",
+        "target_snr_db": 2.2,
+        "estimated_snr_db": 2.3,
+        "decision": "VALIDATED",
+        "protocol": "Analog Facsimile (Weather Fax / WEFAX / FM)",
+        "latency_ms": 1411.5450382232666
+      },
+      {
+        "name": "APRS.wav",
+        "target_snr_db": 2.5,
+        "estimated_snr_db": -0.94,
+        "decision": "ESTIMATED",
+        "protocol": "2-FSK / AFSK (Bell 202 / APRS Packet Data)",
+        "latency_ms": 2993.0617809295654
+      },
+      {
+        "name": "SYNTH_2FSK_3dB",
+        "target_snr_db": 3.0,
+        "estimated_snr_db": 2.97,
+        "decision": "ESTIMATED",
+        "protocol": "16-QAM",
+        "latency_ms": 1806.2303066253662
+      },
+      {
+        "name": "SYNTH_BPSK_2dB",
+        "target_snr_db": 2.0,
+        "estimated_snr_db": 2.03,
+        "decision": "VALIDATED",
+        "protocol": "2-FSK (Frequency Shift Keying / 316 Hz Shift)",
+        "latency_ms": 1551.443338394165
+      }
+    ],
+    "D_OOD": [
+      {
+        "name": "CHAOTIC_POLY_PHASE",
+        "decision": "UNKNOWN_OOD",
+        "protocol": "4-FSK (4-Level Frequency Shift Keying)",
+        "rejected_as_ood": true,
+        "latency_ms": 1372.3630905151367
+      },
+      {
+        "name": "HARMONIC_COMB_MULTI",
+        "decision": "VALIDATED",
+        "protocol": "DMR Tier II (Digital Mobile Radio TDMA 4-FSK)",
+        "rejected_as_ood": false,
+        "latency_ms": 898.1766700744629
+      },
+      {
+        "name": "AMPLITUDE_FLUTTER",
+        "decision": "UNKNOWN_OOD",
+        "protocol": "4-FSK (4-Level Frequency Shift Keying)",
+        "rejected_as_ood": true,
+        "latency_ms": 843.2230949401855
+      },
+      {
+        "name": "NON_LINEAR_FM",
+        "decision": "NO SIGNAL / NOISE FLOOR",
+        "protocol": "Noise Floor / Stationary Gaussian Noise",
+        "rejected_as_ood": false,
+        "latency_ms": 577.9390335083008
+      }
+    ],
+    "E_AMBIGUOUS": [
+      {
+        "name": "BELL202_POCSAG_BOUNDARY",
+        "decision": "AMBIGUOUS",
+        "protocol": "Ambiguous (Bell 202 / APRS vs POCSAG 1200)",
+        "num_candidates": 2,
+        "is_ambiguous": true,
+        "latency_ms": 1184.7360134124756
+      },
+      {
+        "name": "MFSK_TONE_OVERLAP",
+        "decision": "AMBIGUOUS",
+        "protocol": "Ambiguous (Bell 202 / APRS vs POCSAG 1200)",
+        "num_candidates": 2,
+        "is_ambiguous": true,
+        "latency_ms": 1159.451961517334
+      },
+      {
+        "name": "DUAL_RATE_FSK",
+        "decision": "AMBIGUOUS",
+        "protocol": "Ambiguous (Bell 202 / APRS vs POCSAG 1200)",
+        "num_candidates": 2,
+        "is_ambiguous": true,
+        "latency_ms": 1171.0340976715088
+      }
+    ],
+    "F_DISTORTED": [
+      {
+        "name": "CLIPPING_SATURATION",
+        "decision": "VALIDATED",
+        "protocol": "2-FSK (Frequency Shift Keying / 236 Hz Shift)",
+        "temporal_consistency_score": 0.7646,
+        "graceful_degradation": false,
+        "latency_ms": 1696.7456340789795
+      },
+      {
+        "name": "CARRIER_DOPPLER_DRIFT",
+        "decision": "ESTIMATED",
+        "protocol": "Pulsed FMOP (Linear FM Up-Chirp / Ionospheric Sounder / HAARP)",
+        "temporal_consistency_score": 0.2895,
+        "graceful_degradation": true,
+        "latency_ms": 2071.7358589172363
+      },
+      {
+        "name": "COMPOSITE_DISTORTION",
+        "decision": "ESTIMATED",
+        "protocol": "8-PSK (NATO Naval Tactical HF / STANAG 4285)",
+        "temporal_consistency_score": 0.2861,
+        "graceful_degradation": true,
+        "latency_ms": 2164.166212081909
+      }
+    ]
+  }
+}

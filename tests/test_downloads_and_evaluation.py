@@ -31,40 +31,42 @@ alt_map = {
     "AIST-2D.wav": "AIST-2D.wav"
 }
 
-print(f"{'FILE':<40} | {'MODULATION':<35} | {'CONF':<6} | {'SNR':<8} | {'BAUD/PRF':<25}")
-print("-" * 120)
+if __name__ == "__main__":
+    print(f"{'FILE':<40} | {'MODULATION':<35} | {'CONF':<6} | {'SNR':<8} | {'BAUD/PRF':<25}")
+    print("-" * 120)
 
-for f in files:
-    path = os.path.join(downloads, f)
-    if not os.path.exists(path):
-        alt_path = os.path.join(samples_dir, alt_map.get(f, f))
-        if os.path.exists(alt_path):
-            path = alt_path
-        else:
-            print(f"{f:<40} | MISSING")
-            continue
-    try:
-        sig, fs, meta = load_signal_file(path, max_samples=250000)
-        res = run_adaptive_pipeline(sig, fs, metadata=meta)
-        p = res["parameters"]
-        m = res["modulation_classification"]
-        det = res.get("autonomous_detection", {})
-        spec = res.get("specialized_telemetry", {})
-        
-        mod_t = det.get("protocol_name", m.get("modulation_type", "Unknown"))
-        conf = f"{det.get('confidence', m.get('confidence', 0.0))*100:.0f}%"
-        snr = f"{p.get('snr_db', 0):+.1f} dB"
-        
-        pipe = det.get("extraction_pipeline", "")
-        if pipe == "pulsed_radar":
-            extra = f"PRF: {spec.get('radar_prf_hz', 0):.1f} Hz"
-        elif pipe == "satellite_telemetry":
-            extra = f"Sub: {spec.get('satellite_subcarrier_frequency_hz', 0):.1f} Hz"
-        else:
-            extra = f"Baud: {p.get('baud_label', 'N/A')}"
+    for f in files:
+        path = os.path.join(downloads, f)
+        if not os.path.exists(path):
+            alt_path = os.path.join(samples_dir, alt_map.get(f, f))
+            if os.path.exists(alt_path):
+                path = alt_path
+            else:
+                print(f"{f:<40} | MISSING")
+                continue
+        try:
+            sig, fs, meta = load_signal_file(path, max_samples=250000)
+            res = run_adaptive_pipeline(sig, fs, metadata=meta)
+            p = res["parameters"]
+            m = res["modulation_classification"]
+            det = res.get("autonomous_detection", {})
+            spec = res.get("specialized_telemetry", {})
             
-        print(f"{f:<40} | {mod_t:<35} | {conf:<6} | {snr:<8} | {extra:<25}")
-        if det.get("physical_evidence"):
-            print("   Evidence: " + "; ".join(det["physical_evidence"][:2]))
-    except Exception as e:
-        print(f"{f:<40} | ERROR: {e}")
+            mod_t = det.get("protocol_name", m.get("modulation_type", "Unknown"))
+            conf = f"{det.get('confidence', m.get('confidence', 0.0))*100:.0f}%"
+            snr = f"{p.get('snr_db', 0):+.1f} dB"
+            
+            pipe = det.get("extraction_pipeline", "")
+            if pipe == "pulsed_radar":
+                extra = f"PRF: {spec.get('radar_prf_hz', 0):.1f} Hz"
+            elif pipe == "satellite_telemetry":
+                extra = f"Sub: {spec.get('satellite_subcarrier_frequency_hz', 0):.1f} Hz"
+            else:
+                extra = f"Baud: {p.get('baud_label', 'N/A')}"
+                
+            print(f"{f:<40} | {mod_t:<35} | {conf:<6} | {snr:<8} | {extra:<25}")
+            if det.get("physical_evidence"):
+                print("   Evidence: " + "; ".join(det["physical_evidence"][:2]))
+        except Exception as e:
+            print(f"{f:<40} | ERROR: {e}")
+

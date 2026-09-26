@@ -24,6 +24,23 @@ FONT_COLOR = "#94a3b8"
 FONT_FAMILY = "Inter, -apple-system, system-ui, sans-serif"
 
 
+def set_plot_theme(theme: str = "dark") -> None:
+    """Apply the UI theme to Plotly figures without changing plot geometry."""
+    global PLOT_BG, PAPER_BG, GRID_COLOR, ZERO_LINE_COLOR, FONT_COLOR
+    if str(theme).lower() == "light":
+        PLOT_BG = "#ffffff"
+        PAPER_BG = "rgba(255,255,255,0)"
+        GRID_COLOR = "#d9e1ea"
+        ZERO_LINE_COLOR = "#aebdca"
+        FONT_COLOR = "#344054"
+    else:
+        PLOT_BG = "#0b0f17"
+        PAPER_BG = "rgba(0,0,0,0)"
+        GRID_COLOR = "#1e293b"
+        ZERO_LINE_COLOR = "#334155"
+        FONT_COLOR = "#94a3b8"
+
+
 def plot_welch_psd(
     f: np.ndarray,
     psd_db: np.ndarray,
@@ -92,7 +109,7 @@ def plot_welch_psd(
         )
 
     fig.update_layout(
-        title=dict(text="<b>Power Spectral Density (Welch Periodogram)</b>", font=dict(family=FONT_FAMILY, size=14, color="#e2e8f0")),
+        title=dict(text="<b>Power Spectral Density (Welch Periodogram)</b>", font=dict(family=FONT_FAMILY, size=14, color=FONT_COLOR)),
         xaxis=dict(title=f"Frequency ({unit})", showgrid=True, gridcolor=GRID_COLOR, zerolinecolor=ZERO_LINE_COLOR),
         yaxis=dict(title="Power Spectral Density (dB/Hz)", showgrid=True, gridcolor=GRID_COLOR, zerolinecolor=ZERO_LINE_COLOR),
         font=dict(family=FONT_FAMILY, size=11, color=FONT_COLOR),
@@ -144,7 +161,7 @@ def plot_spectrogram_waterfall(
     ))
 
     fig.update_layout(
-        title=dict(text="<b>Time-Frequency Spectrogram (STFT Waterfall)</b>", font=dict(family=FONT_FAMILY, size=14, color="#e2e8f0")),
+        title=dict(text="<b>Time-Frequency Spectrogram (STFT Waterfall)</b>", font=dict(family=FONT_FAMILY, size=14, color=FONT_COLOR)),
         xaxis=dict(title=f"Frequency ({unit})", showgrid=False),
         yaxis=dict(title="Time (seconds)", showgrid=False),
         font=dict(family=FONT_FAMILY, size=11, color=FONT_COLOR),
@@ -205,7 +222,7 @@ def plot_iq_constellation(
     max_lim = max(1.5, float(np.percentile(np.abs(sig_sample), 99) * 1.3))
 
     fig.update_layout(
-        title=dict(text="<b>I/Q Baseband Constellation Diagram</b>", font=dict(family=FONT_FAMILY, size=14, color="#e2e8f0")),
+        title=dict(text="<b>I/Q Baseband Constellation Diagram</b>", font=dict(family=FONT_FAMILY, size=14, color=FONT_COLOR)),
         xaxis=dict(
             title="In-Phase (I)",
             range=[-max_lim, max_lim],
@@ -350,7 +367,7 @@ def plot_time_domain_envelope(
     ))
 
     fig.update_layout(
-        title=dict(text="<b>Time-Domain Baseband Oscilloscope Trace</b>", font=dict(family=FONT_FAMILY, size=14, color="#e2e8f0")),
+        title=dict(text="<b>Time-Domain Baseband Oscilloscope Trace</b>", font=dict(family=FONT_FAMILY, size=14, color=FONT_COLOR)),
         xaxis=dict(title=f"Time ({t_unit})", showgrid=True, gridcolor=GRID_COLOR, zerolinecolor=ZERO_LINE_COLOR),
         yaxis=dict(title="Normalized Amplitude", showgrid=True, gridcolor=GRID_COLOR, zerolinecolor=ZERO_LINE_COLOR),
         font=dict(family=FONT_FAMILY, size=11, color=FONT_COLOR),
@@ -413,7 +430,7 @@ def plot_synchronized_constellation(
     fig.update_layout(
         title=dict(
             text="<b>Synchronized Symbol Constellation (1 sps)</b>",
-            font=dict(family=FONT_FAMILY, size=14, color="#e2e8f0")
+            font=dict(family=FONT_FAMILY, size=14, color=FONT_COLOR)
         ),
         xaxis=dict(
             title="In-Phase (I)",
@@ -509,7 +526,7 @@ def plot_llr_histogram(
     fig.update_layout(
         title=dict(
             text="<b>Soft Decision Log-Likelihood Ratio (LLR) Margin</b>",
-            font=dict(family=FONT_FAMILY, size=14, color="#e2e8f0")
+            font=dict(family=FONT_FAMILY, size=14, color=FONT_COLOR)
         ),
         xaxis=dict(
             title="Log-Likelihood Ratio (LLR) = ln[P(b=0) / P(b=1)]",

@@ -20,27 +20,146 @@ from .pulse_analyzer import analyze_pulse_train
 def estimate_carrier_frequency(
     f: np.ndarray,
     psd_linear: np.ndarray,
-    psd_db: np.ndarray
-) -> Dict[str, float]:
+    psd_db: np.ndarray,
+    fs: Optional[float] = None
+) -> Dict[str, Any]:
     """
-    Estimates the carrier center frequency via both peak detection and spectral centroid.
+    Estimates carrier and structural frequency parameters:
+    - peak_frequency (with parabolic interpolation, positive for real signals)
+    - spectral_centroid (power-weighted frequency centroid)
+    - spectral_median (50% cumulative power point)
+    - energy_center_frequency (midpoint of 99% OBW)
+    - dominant_component_frequencies (prominent spectral peaks)
+    - frequency_structure: SINGLE_COMPONENT, MULTI_COMPONENT, SPREAD_SPECTRUM, CHIRP, HOPPING, PULSED, UNKNOWN
+    - tone_spacing_hz, frequency_deviation_hz
+    - Backward-compatible keys: fc_peak_hz, fc_centroid_hz, peak_power_db
     """
     if len(f) == 0 or len(psd_linear) == 0:
-        return {"fc_peak_hz": 0.0, "fc_centroid_hz": 0.0, "peak_power_db": -100.0}
+        return {
+            "fc_peak_hz": 0.0,
+            "fc_centroid_hz": 0.0,
+            "peak_frequency_hz": 0.0,
+            "spectral_centroid_hz": 0.0,
+            "spectral_median_hz": 0.0,
+            "energy_center_frequency_hz": 0.0,
+            "dominant_component_frequencies": [],
+            "frequency_structure": "UNKNOWN",
+            "tone_spacing_hz": None,
+            "frequency_deviation_hz": None,
+            "peak_power_db": -100.0
+        }
 
-    peak_idx = int(np.argmax(psd_db))
-    fc_peak = float(f[peak_idx])
-    peak_power = float(psd_db[peak_idx])
+    bin_spacing = float(abs(f[1] - f[0])) if len(f) > 1 else 1.0
 
-    total_power = np.sum(psd_linear)
-    if total_power > 1e-18:
-        fc_centroid = float(np.sum(f * psd_linear) / total_power)
+    # 1. Peak Frequency with parabolic interpolation
+    # If two-sided spectrum on real signals (f spans negative and positive symmetrically),
+    # select the positive peak to avoid returning negative carrier frequencies
+    pos_mask = f >= 0.0
+    is_two_sided_symmetric = (f[0] < 0.0 and f[-1] > 0.0 and np.any(pos_mask))
+
+    if is_two_sided_symmetric:
+        sub_indices = np.where(pos_mask)[0]
+        rel_pk = int(np.argmax(psd_db[pos_mask]))
+        pk_idx = int(sub_indices[rel_pk])
     else:
-        fc_centroid = fc_peak
+        pk_idx = int(np.argmax(psd_db))
+
+    if 0 < pk_idx < len(psd_db) - 1:
+        y0, y1, y2 = float(psd_db[pk_idx - 1]), float(psd_db[pk_idx]), float(psd_db[pk_idx + 1])
+        denom = y0 - 2.0 * y1 + y2
+        if abs(denom) > 1e-12:
+            delta = float(np.clip(0.5 * (y0 - y2) / denom, -0.5, 0.5))
+            peak_freq = float(f[pk_idx] + delta * bin_spacing)
+        else:
+            peak_freq = float(f[pk_idx])
+    else:
+        peak_freq = float(f[pk_idx])
+
+    peak_freq = float(np.round(peak_freq, 2))
+    peak_power = float(np.round(psd_db[pk_idx], 2))
+
+    # 2. Spectral Centroid
+    tot_pwr = float(np.sum(psd_linear))
+    if tot_pwr > 1e-18:
+        centroid_freq = float(np.sum(f * psd_linear) / tot_pwr)
+    else:
+        centroid_freq = peak_freq
+    centroid_freq = float(np.round(centroid_freq, 2))
+
+    # 3. Spectral Median (50% cumulative power point)
+    cum_pwr = np.cumsum(psd_linear)
+    tot_cum = cum_pwr[-1] if len(cum_pwr) > 0 else 1.0
+    med_idx = int(np.searchsorted(cum_pwr, 0.50 * tot_cum))
+    med_idx = min(max(0, med_idx), len(f) - 1)
+    spectral_median = float(np.round(f[med_idx], 2))
+
+    # 4. Energy Center Frequency (Midpoint of 99% OBW)
+    if tot_cum > 1e-18:
+        i_lo = int(np.searchsorted(cum_pwr, 0.005 * tot_cum))
+        i_hi = min(len(f) - 1, int(np.searchsorted(cum_pwr, 0.995 * tot_cum)))
+        energy_center = float(np.round(0.5 * (f[i_lo] + f[i_hi]), 2))
+        obw99 = float(abs(f[i_hi] - f[i_lo]))
+    else:
+        energy_center = peak_freq
+        obw99 = bin_spacing
+
+    # 5. Dominant Component Frequencies
+    p50_db = float(np.percentile(psd_db, 50))
+    pk_max = float(np.max(psd_db))
+    min_prominence = max(3.0, 0.15 * (pk_max - p50_db))
+    min_dist = max(2, int(25.0 / bin_spacing))
+    pks, _ = find_peaks(psd_db, prominence=min_prominence, distance=min_dist)
+
+    dominant_freqs: List[float] = []
+    if len(pks) > 0:
+        pks_filt = [p for p in pks if psd_db[p] >= pk_max - 20.0]
+        if not pks_filt:
+            pks_filt = list(pks)
+        order = np.argsort(psd_db[pks_filt])[::-1]
+        dominant_freqs = [float(np.round(f[pks_filt[idx]], 2)) for idx in order[:16]]
+
+    # 6. Frequency Structure Analysis
+    num_pks = len(dominant_freqs)
+    tone_spacing = None
+    freq_dev = None
+
+    if num_pks <= 1:
+        freq_struct = "SINGLE_COMPONENT"
+    elif num_pks == 2:
+        freq_struct = "MULTI_COMPONENT"
+        f1, f2 = sorted(dominant_freqs[:2])
+        tone_spacing = float(np.round(f2 - f1, 2))
+        freq_dev = float(np.round(tone_spacing / 2.0, 2))
+        energy_center = float(np.round(0.5 * (f1 + f2), 2))
+    elif 3 <= num_pks <= 16:
+        sorted_pks = sorted(dominant_freqs)
+        diffs = np.diff(sorted_pks)
+        valid_diffs = diffs[diffs > 5.0]
+        if len(valid_diffs) > 0:
+            tone_spacing = float(np.round(np.median(valid_diffs), 2))
+            freq_dev = float(np.round((sorted_pks[-1] - sorted_pks[0]) / 2.0, 2))
+            energy_center = float(np.round(0.5 * (sorted_pks[0] + sorted_pks[-1]), 2))
+            if len(valid_diffs) >= 2 and float(np.std(valid_diffs)) < 0.30 * tone_spacing:
+                freq_struct = "MULTI_COMPONENT_HARMONIC"
+            else:
+                freq_struct = "MULTI_COMPONENT"
+        else:
+            freq_struct = "MULTI_COMPONENT"
+    else:
+        fs_eff = fs if (fs and fs > 0) else (f[-1] - f[0])
+        freq_struct = "SINGLE_COMPONENT" if obw99 < 0.05 * fs_eff else "SPREAD_SPECTRUM"
 
     return {
-        "fc_peak_hz": fc_peak,
-        "fc_centroid_hz": fc_centroid,
+        "fc_peak_hz": peak_freq,
+        "fc_centroid_hz": centroid_freq,
+        "peak_frequency_hz": peak_freq,
+        "spectral_centroid_hz": centroid_freq,
+        "spectral_median_hz": spectral_median,
+        "energy_center_frequency_hz": energy_center,
+        "dominant_component_frequencies": dominant_freqs,
+        "frequency_structure": freq_struct,
+        "tone_spacing_hz": tone_spacing,
+        "frequency_deviation_hz": freq_dev,
         "peak_power_db": peak_power
     }
 
@@ -661,7 +780,11 @@ def extract_all_parameters(
 
     active_snr = float(np.clip(active_snr, -15.0, 42.0))
 
-    # 6. Baud Rate Extraction with Autonomous Physical Detection
+    # 6. Blind Parameter Engine Integration (Layer A)
+    from .blind_parameter_engine import extract_blind_parameters
+    blind_vec = extract_blind_parameters(normalized_sig, fs)
+
+    # Autonomous detection for downstream protocol label compatibility
     from .autonomous_detector import detect_signal_autonomously
     det = detect_signal_autonomously(normalized_sig, fs, pulse_info=pulse_info)
     pipeline_name = det.get("extraction_pipeline", "")
@@ -699,9 +822,22 @@ def extract_all_parameters(
             "baud_label": b_lbl,
             "symbol_rate_nominal": b_val,
             "symbol_rate_estimated": b_val,
-            "symbol_rate_observed": None,
+            "symbol_rate_observed": blind_vec.symbol_rate_consensus_hz,
             "parameter_status": "nominal",
             "estimator_method": "standard_protocol_nominal"
+        }
+    elif blind_vec.symbol_rate_consensus_hz is not None and blind_vec.symbol_rate_consensus_hz > 0:
+        b_val = float(blind_vec.symbol_rate_consensus_hz)
+        b_lbl = f"{b_val/1e3:.1f} kBaud" if b_val >= 1000.0 else f"{b_val:.1f} Baud"
+        baud_params = {
+            "estimated_baud_rate_hz": b_val,
+            "baud_confidence": 0.92,
+            "baud_label": b_lbl,
+            "symbol_rate_consensus_hz": b_val,
+            "symbol_rate_consensus_method": blind_vec.symbol_rate_consensus_method,
+            "symbol_rate_candidates": blind_vec.symbol_rate_candidates,
+            "parameter_status": "observed",
+            "estimator_method": "blind_multi_method_consensus"
         }
     else:
         baud_params = estimate_symbol_baud_rate(
@@ -716,7 +852,7 @@ def extract_all_parameters(
     # 8. FSK Specialized Telemetry Parameters
     fsk_params = {}
     if pipeline_name == "fsk_detector" or det.get("fsk_shift_hz") is not None:
-        fsk_shift_val = det.get("fsk_shift_hz")
+        fsk_shift_val = det.get("fsk_shift_hz", blind_vec.frequency_deviation_hz * 2.0 if blind_vec.frequency_deviation_hz else None)
         if fsk_shift_val is not None:
             f_m_val = det.get("mark_freq_hz", carrier_params["fc_peak_hz"] - fsk_shift_val / 2.0)
             f_s_val = det.get("space_freq_hz", carrier_params["fc_peak_hz"] + fsk_shift_val / 2.0)
@@ -741,6 +877,11 @@ def extract_all_parameters(
         "snr_db": float(np.round(active_snr, 2)),
         "snr_estimation_method": snr_method,
         "spectral_dynamic_range_db": float(np.round(np.max(psd_db) - np.percentile(psd_db, 15), 2)),
+        "frequency_structure": blind_vec.frequency_structure,
+        "morphology_fingerprint": blind_vec.morphology_fingerprint,
+        "parameter_consistency": blind_vec.parameter_consistency,
+        "blindness_provenance": blind_vec.blindness_provenance,
+        "blind_parameters": blind_vec.to_dict(),
         **carrier_params,
         **bw_params,
         **baud_params,

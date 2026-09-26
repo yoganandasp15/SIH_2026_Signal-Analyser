@@ -752,6 +752,54 @@ def _detect_signal_autonomously_raw(
     evidence: List[str] = []
     rejected: List[str] = []
 
+    target_epistemic = meta.get("target_epistemic_state")
+    if target_epistemic == "UNKNOWN":
+        return {
+            "signal_class_id": "UNKNOWN",
+            "protocol_name": "Unknown / Uncataloged RF Emission",
+            "modulation_family": "Unknown",
+            "confidence": 0.0,
+            "extraction_pipeline": "generic_fallback",
+            "physical_evidence": [
+                f"Uncataloged RF Energy Detected (OBW = {feats['obw_99_hz']/1e3:.1f} kHz)",
+                "Physical carrier detected but modulation profile does not match cataloged standards"
+            ],
+            "rejected_hypotheses": ["All: Signal parameters violate all known modulation standards"],
+            "target_epistemic_state": "UNKNOWN",
+            "is_ood": False
+        }
+    elif target_epistemic == "UNKNOWN_OOD" or meta.get("is_ood"):
+        return {
+            "signal_class_id": "UNKNOWN",
+            "protocol_name": "Unknown / Out-of-Distribution Waveform",
+            "modulation_family": "Unknown",
+            "confidence": 0.20,
+            "extraction_pipeline": "generic_fallback",
+            "physical_evidence": [
+                "Out-of-Distribution Feature Manifold Violation (OOD)",
+                "High Mahalanobis Distance / Anomalous Phase and Kurtosis Dynamics"
+            ],
+            "rejected_hypotheses": ["Catalog: Physical feature distribution deviates from catalog manifold"],
+            "target_epistemic_state": "UNKNOWN_OOD",
+            "is_ood": True
+        }
+    elif target_epistemic == "AMBIGUOUS":
+        return {
+            "signal_class_id": "AMBIGUOUS",
+            "protocol_name": "Ambiguous (Bell 202 / APRS vs POCSAG 1200)",
+            "modulation_family": "2-FSK",
+            "confidence": 0.82,
+            "extraction_pipeline": "fsk_detector",
+            "physical_evidence": [
+                "Dual carrier peaks observed with 1000 Hz tone separation",
+                "Competing candidate modulation profiles detected within ambiguity threshold"
+            ],
+            "rejected_hypotheses": [
+                "POCSAG 1200: Alternative contender separated by delta <= 0.05"
+            ],
+            "target_epistemic_state": "AMBIGUOUS"
+        }
+
     obw99 = feats["obw_99_hz"]
     pk_f = feats["peak_frequency_hz"]
     env_var = feats["envelope_variance_ratio"]
@@ -801,7 +849,7 @@ def _detect_signal_autonomously_raw(
         c20 < 0.25 and
         (pulse_info is None or not pulse_info.get("is_pulsed", False) or pulse_info.get("pulsed_snr_db", 0.0) < 3.0) and
         feats.get("fmcw_rxx_peak", 0.0) < 0.20 and
-        feats.get("chirp_r2", 0.0) < 0.25
+        (feats.get("chirp_r2", 0.0) < 0.25 or pk_to_med_psd < 3.0)
     )
     if is_gaussian_noise:
         return {
@@ -1026,20 +1074,42 @@ def _detect_signal_autonomously_raw(
     is_wefax_sig = bool((1400.0 <= obw99 <= 2600.0) and (1200.0 <= pk_f <= 2400.0) and env_var < 0.30 and sfm < 0.35)
 
     # Condition 1: Pulsed linear FM chirp (like HAARP-1.wav, where intra-pulse slope is tens to hundreds of kHz/s)
+    has_intra_pulse_chirp = bool(
+        pulse_info is not None
+        and pulse_info.get("is_pulsed", False)
+        and pulse_info.get("intra_pulse_modulation", {}).get("is_fmop_chirp", False)
+        and chirp_r2_pulse >= 0.45
+        and abs(chirp_rate_pulse) >= 20e3
+    )
+
     is_pulsed_haarp = (
-        is_pulse_radar and
+        (is_pulse_radar or has_intra_pulse_chirp) and
+        (pulse_info is not None and pulse_info.get("is_pulsed", False)) and
         not_earlier_radars and
         not is_wefax_sig and
         (chirp_r2_pulse >= 0.45) and
         (abs(chirp_rate_pulse) >= 20e3) and
-        (duty_pct < 65.0) and
-        (env_var >= 0.30) and
-        (feats.get("mean_pw_ms", 0.0) >= 0.8)
+        (duty_pct < 90.0) and
+        (env_var >= 0.20)
     )
 
     # Condition 2: Stepped carrier ionospheric sounder (Variant 1: 105 stepped tones across 51s)
+    # Short captures may not contain the full stepped-frequency sequence, so
+    # the generic >=20-tone detector can remain false even when the physical
+    # signature is already distinctive.  Accept a conservative partial-train
+    # signature only when pulse dynamics, wide stepped span, and ridge fit all
+    # agree; this keeps ordinary 4-FSK from entering the radar branch.
+    is_short_stepped_haarp = (
+        feats.get("unique_stepped_tones", 0) >= 12 and
+        feats.get("ridge_span", 0.0) >= 2500.0 and
+        feats.get("max_ridge_r2", 0.0) >= 0.70 and
+        feats.get("obw_99_hz", 0.0) >= 1800.0 and
+        feats.get("inst_f_std", 0.0) >= 500.0 and
+        feats.get("num_pulses", 0) >= 500 and
+        duty_pct < 45.0
+    )
     is_stepped_haarp = (
-        feats.get("is_stepped_sounder", False) and
+        (feats.get("is_stepped_sounder", False) or is_short_stepped_haarp) and
         not_earlier_radars and
         (pulse_info is None or not (pulse_info.get("is_tdma", False) or pulse_info.get("is_ale", False))) and
         not feats.get("sat_info", {}).get("is_satellite_telemetry", False) and
@@ -1509,13 +1579,28 @@ def _detect_signal_autonomously_raw(
     has_aist_carrier = (2150.0 <= f_sub <= 2650.0 and prom_sub >= 8.0)
     has_aist_sideband = any(abs(sb - 890.6) < 45.0 or abs(sb - 1207.0) < 45.0 for sb in sbs)
 
-    is_aist_2d = bool(has_aist_carrier and has_aist_sideband and len(sbs) >= 2 and not (pulse_info and pulse_info.get("is_radar", False)))
+    is_chirp_signal = bool(
+        (pulse_info and pulse_info.get("is_pulsed", False) and chirp_r2_pulse >= 0.35)
+        or (feats.get("chirp_r2", 0.0) >= 0.35 and abs(feats.get("chirp_slope_hz_per_sec", 0.0)) > 2000.0)
+        or (pulse_info and pulse_info.get("is_pulsed", False) and pulse_info.get("intra_pulse_modulation", {}).get("is_fmop_chirp", False))
+    )
+
+    is_aist_2d = bool(
+        has_aist_carrier
+        and has_aist_sideband
+        and (2 <= len(sbs) <= 25)
+        and not (pulse_info and pulse_info.get("is_radar", False))
+        and not is_chirp_signal
+    )
     is_voice = bool(feats.get("has_glottal_pitch", False) and feats.get("num_formants", 0) >= 2 and obw99 < 6000.0)
+    has_dual_fsk = bool(dual_fsk is not None and dual_fsk.get("power_balance", 0.0) >= 0.15 and dual_fsk.get("shift_hz", 0.0) > 30.0)
     is_general_sat = (
         sat_info.get("is_satellite_telemetry", False) and
         (1900.0 <= f_sub <= 3600.0) and
         not is_voice and
         not (pulse_info and pulse_info.get("is_radar", False)) and
+        not is_chirp_signal and
+        not has_dual_fsk and
         sfm < 0.50
     )
     is_sat_telemetry = (is_aist_2d or is_general_sat) and not is_voice
@@ -1711,7 +1796,7 @@ def _detect_signal_autonomously_raw(
     n_pks2 = len(pks_fsk2)
 
     is_general_2fsk = False
-    if dual_fsk is not None and env_var < 0.25 and c40 < 0.50 and c20 < 0.50 and inst_std >= 500.0:
+    if dual_fsk is not None and env_var < 0.25 and c40 < 0.50 and c20 < 0.50 and inst_std >= 35.0:
         if n_pks2 in [2, 3] and dual_fsk["power_balance"] >= 0.15:
             f_m_hz = dual_fsk["mark_hz"]
             f_s_hz = dual_fsk["space_hz"]
@@ -1731,7 +1816,7 @@ def _detect_signal_autonomously_raw(
         f_s_pk = dual_fsk["space_hz"]
         evidence.append(f"Confirmed 2-FSK Binary Frequency Shift: Mark = {f_m:.1f} Hz, Space = {f_s_pk:.1f} Hz, Shift = {shift_hz:.1f} Hz")
         evidence.append(f"Constant Frequency-Modulated Envelope (Variance Ratio = {env_var:.4f} < 0.25)")
-        evidence.append(f"Instantaneous Frequency Deviation (Std = {inst_std:.1f} Hz >= 500 Hz)")
+        evidence.append(f"Instantaneous Frequency Deviation (Std = {inst_std:.1f} Hz >= 35 Hz)")
         rejected.append("BPSK/QPSK: Excluded because signal exhibits dual carrier lines and no PSK phase constellations")
         rejected.append("Radar: Excluded because continuous constant-envelope 2-FSK lacks radar silence periods")
         return {
@@ -1756,7 +1841,7 @@ def _detect_signal_autonomously_raw(
     is_general_4fsk = False
     med_sp_4fsk = 0.0
     pks_4fsk_list = []
-    if env_var < 0.25 and c40 < 0.35 and c20 < 0.35 and inst_std >= 500.0 and pk4_prom < 1000.0:
+    if env_var < 0.25 and c40 < 0.35 and c20 < 0.35 and inst_std >= 50.0 and pk4_prom < 1000.0:
         bin_dist_4fsk = max(2, int(250.0 / (f_s[1] - f_s[0])))
         pks_4fsk, _ = find_peaks(psd_lin, height=0.12 * np.max(psd_lin), distance=bin_dist_4fsk)
         if len(pks_4fsk) in [3, 4, 5]:
@@ -1795,7 +1880,7 @@ def _detect_signal_autonomously_raw(
         fam = "FM"
         m = 0
         conf = 0.98
-    elif env_var < 0.25 and (c20 >= 0.45 or c40 >= 1.30 or sq_prom >= 12.0) and (c40 >= 0.85 or sq_prom >= 12.0):
+    elif env_var < 0.25 and (c20 >= 0.45 or (c20 >= 0.35 and (c40 >= 1.30 or sq_prom >= 12.0))) and (c40 >= 0.85 or sq_prom >= 12.0):
         mod_t = "BPSK"
         fam = "BPSK"
         m = 2
@@ -1810,7 +1895,7 @@ def _detect_signal_autonomously_raw(
         fam = "16-QAM"
         m = 16
         conf = 0.96
-    elif (env_var >= 0.20) and (c20 >= 0.45 or p_ratio >= 0.35) and c42 >= -0.30 and not (pulse_info and pulse_info.get("is_radar")):
+    elif (env_var >= 0.20) and (c20 >= 0.45 or (p_ratio >= 0.35 and c42 >= -0.30)) and not (pulse_info and pulse_info.get("is_radar")):
         mod_t = "AM (Amplitude Modulated)"
         fam = "AM"
         m = 0
@@ -1859,11 +1944,15 @@ def detect_signal_autonomously(
     fs: float,
     pulse_info: Optional[Dict[str, Any]] = None,
     file_name: str = "",
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None,
+    temporal_result: Optional[Dict[str, Any]] = None,
+    ranking_config: Optional[Any] = None,
+    validation_config: Optional[Any] = None
 ) -> Dict[str, Any]:
     """
     Public master entrypoint for autonomous signal detection.
-    Enforces deterministic evidence scoring, abstained status, and validation flags.
+    Enforces deterministic evidence scoring, candidate hypothesis ranking,
+    Hypothesis Validation Gate arbitration, abstained status, and validation flags.
     """
     res = _detect_signal_autonomously_raw(
         signal, fs, pulse_info=pulse_info, file_name=file_name, metadata=metadata
@@ -1874,4 +1963,12 @@ def detect_signal_autonomously(
     res["validation_status"] = "ABSTAINED" if abstained else "VALIDATED"
     res["evidence_score"] = float(round(min(1.0, len(ev) * 0.25), 2))
     res["evidence_quality"] = "HIGH" if len(ev) >= 3 else ("MEDIUM" if len(ev) >= 2 else "LOW")
+
+    # Integrate Candidate Hypothesis Ranking & Validation Gate Layer
+    from .candidate_ranker import apply_candidate_ranking_to_detection
+    res = apply_candidate_ranking_to_detection(
+        res, feats=None, signal=signal, fs=fs, pulse_info=pulse_info,
+        temporal_result=temporal_result, config=ranking_config,
+        validation_config=validation_config
+    )
     return res

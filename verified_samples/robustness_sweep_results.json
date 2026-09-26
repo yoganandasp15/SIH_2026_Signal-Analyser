@@ -1,0 +1,328 @@
+{
+  "reference_sample": "ASCII.wav",
+  "sample_rate_hz": 44100.0,
+  "total_samples": 100000,
+  "timestamp": "2026-09-07T20:46:32Z",
+  "sweeps": {
+    "awgn": [
+      {
+        "dimension": "AWGN",
+        "level": 20.0,
+        "unit": "dB",
+        "decision": "ESTIMATED",
+        "protocol": "2-FSK (ASCII / ITA-5 110 Baud)",
+        "matched_truth": true,
+        "confidence": 0.98,
+        "evidence_score": 0.75,
+        "temporal_stability_score": 0.4869,
+        "estimated_snr_db": 12.88,
+        "latency_ms": 1559.3397617340088,
+        "is_safe_degradation": true
+      },
+      {
+        "dimension": "AWGN",
+        "level": 15.0,
+        "unit": "dB",
+        "decision": "VALIDATED",
+        "protocol": "2-FSK (ASCII / ITA-5 110 Baud)",
+        "matched_truth": true,
+        "confidence": 0.98,
+        "evidence_score": 0.75,
+        "temporal_stability_score": 0.6027,
+        "estimated_snr_db": 11.31,
+        "latency_ms": 1274.3618488311768,
+        "is_safe_degradation": true
+      },
+      {
+        "dimension": "AWGN",
+        "level": 10.0,
+        "unit": "dB",
+        "decision": "VALIDATED",
+        "protocol": "2-FSK (ASCII / ITA-5 110 Baud)",
+        "matched_truth": true,
+        "confidence": 0.98,
+        "evidence_score": 0.75,
+        "temporal_stability_score": 0.665,
+        "estimated_snr_db": 8.39,
+        "latency_ms": 1407.4294567108154,
+        "is_safe_degradation": true
+      },
+      {
+        "dimension": "AWGN",
+        "level": 5.0,
+        "unit": "dB",
+        "decision": "VALIDATED",
+        "protocol": "TDMA Digital Burst (GMSK / Maritime AIS 9600 Baud)",
+        "matched_truth": true,
+        "confidence": 0.97,
+        "evidence_score": 0.75,
+        "temporal_stability_score": 0.7436,
+        "estimated_snr_db": 4.34,
+        "latency_ms": 2022.3653316497803,
+        "is_safe_degradation": true
+      },
+      {
+        "dimension": "AWGN",
+        "level": 2.0,
+        "unit": "dB",
+        "decision": "ESTIMATED",
+        "protocol": "16-QAM",
+        "matched_truth": true,
+        "confidence": 0.96,
+        "evidence_score": 0.5,
+        "temporal_stability_score": 0.7881,
+        "estimated_snr_db": 1.61,
+        "latency_ms": 1190.8459663391113,
+        "is_safe_degradation": true
+      },
+      {
+        "dimension": "AWGN",
+        "level": 0.0,
+        "unit": "dB",
+        "decision": "ESTIMATED",
+        "protocol": "AM (Amplitude Modulated)",
+        "matched_truth": true,
+        "confidence": 0.96,
+        "evidence_score": 0.5,
+        "temporal_stability_score": 0.8267,
+        "estimated_snr_db": -0.27,
+        "latency_ms": 1337.859869003296,
+        "is_safe_degradation": true
+      },
+      {
+        "dimension": "AWGN",
+        "level": -3.0,
+        "unit": "dB",
+        "decision": "ESTIMATED",
+        "protocol": "AM (Amplitude Modulated)",
+        "matched_truth": true,
+        "confidence": 0.96,
+        "evidence_score": 0.5,
+        "temporal_stability_score": 0.8809,
+        "estimated_snr_db": -3.12,
+        "latency_ms": 1434.830665588379,
+        "is_safe_degradation": true
+      },
+      {
+        "dimension": "AWGN",
+        "level": -6.0,
+        "unit": "dB",
+        "decision": "ESTIMATED",
+        "protocol": "AM (Amplitude Modulated)",
+        "matched_truth": true,
+        "confidence": 0.96,
+        "evidence_score": 0.5,
+        "temporal_stability_score": 0.8947,
+        "estimated_snr_db": -5.14,
+        "latency_ms": 1776.129961013794,
+        "is_safe_degradation": true
+      },
+      {
+        "dimension": "AWGN",
+        "level": -10.0,
+        "unit": "dB",
+        "decision": "ESTIMATED",
+        "protocol": "AM (Amplitude Modulated)",
+        "matched_truth": true,
+        "confidence": 0.96,
+        "evidence_score": 0.5,
+        "temporal_stability_score": 0.8809,
+        "estimated_snr_db": -8.38,
+        "latency_ms": 1635.5361938476562,
+        "is_safe_degradation": true
+      }
+    ],
+    "clipping": [
+      {
+        "dimension": "CLIPPING",
+        "level": 95.0,
+        "unit": "%ile",
+        "decision": "VALIDATED",
+        "protocol": "8-PSK (NATO Naval Tactical HF / STANAG 4285)",
+        "matched_truth": true,
+        "evidence_score": 0.75,
+        "temporal_stability_score": 0.8212,
+        "latency_ms": 1449.2151737213135
+      },
+      {
+        "dimension": "CLIPPING",
+        "level": 80.0,
+        "unit": "%ile",
+        "decision": "VALIDATED",
+        "protocol": "8-PSK (NATO Naval Tactical HF / STANAG 4285)",
+        "matched_truth": true,
+        "evidence_score": 0.75,
+        "temporal_stability_score": 0.8145,
+        "latency_ms": 1484.10964012146
+      },
+      {
+        "dimension": "CLIPPING",
+        "level": 60.0,
+        "unit": "%ile",
+        "decision": "VALIDATED",
+        "protocol": "8-PSK (NATO Naval Tactical HF / STANAG 4285)",
+        "matched_truth": true,
+        "evidence_score": 0.75,
+        "temporal_stability_score": 0.8036,
+        "latency_ms": 1551.0900020599365
+      },
+      {
+        "dimension": "CLIPPING",
+        "level": 40.0,
+        "unit": "%ile",
+        "decision": "ESTIMATED",
+        "protocol": "16-QAM",
+        "matched_truth": true,
+        "evidence_score": 0.5,
+        "temporal_stability_score": 0.7873,
+        "latency_ms": 1650.7329940795898
+      },
+      {
+        "dimension": "CLIPPING",
+        "level": 20.0,
+        "unit": "%ile",
+        "decision": "ESTIMATED",
+        "protocol": "16-QAM",
+        "matched_truth": true,
+        "evidence_score": 0.5,
+        "temporal_stability_score": 0.7916,
+        "latency_ms": 1602.5927066802979
+      },
+      {
+        "dimension": "CLIPPING",
+        "level": 10.0,
+        "unit": "%ile",
+        "decision": "ESTIMATED",
+        "protocol": "16-QAM",
+        "matched_truth": true,
+        "evidence_score": 0.5,
+        "temporal_stability_score": 0.725,
+        "latency_ms": 1516.099214553833
+      }
+    ],
+    "doppler_drift": [
+      {
+        "dimension": "DOPPLER_DRIFT",
+        "level": 0.0,
+        "unit": "Hz/s",
+        "decision": "VALIDATED",
+        "protocol": "2-FSK (ASCII / ITA-5 110 Baud)",
+        "temporal_stability_score": 0.6672,
+        "evidence_score": 0.75,
+        "latency_ms": 1195.3659057617188
+      },
+      {
+        "dimension": "DOPPLER_DRIFT",
+        "level": 100.0,
+        "unit": "Hz/s",
+        "decision": "ESTIMATED",
+        "protocol": "2-FSK (ASCII / ITA-5 110 Baud)",
+        "temporal_stability_score": 0.5867,
+        "evidence_score": 0.75,
+        "latency_ms": 1218.1880474090576
+      },
+      {
+        "dimension": "DOPPLER_DRIFT",
+        "level": 300.0,
+        "unit": "Hz/s",
+        "decision": "ESTIMATED",
+        "protocol": "2-FSK (ASCII / ITA-5 110 Baud)",
+        "temporal_stability_score": 0.3749,
+        "evidence_score": 0.75,
+        "latency_ms": 1190.457820892334
+      },
+      {
+        "dimension": "DOPPLER_DRIFT",
+        "level": 600.0,
+        "unit": "Hz/s",
+        "decision": "ESTIMATED",
+        "protocol": "QPSK",
+        "temporal_stability_score": 0.321,
+        "evidence_score": 0.5,
+        "latency_ms": 1208.5208892822266
+      },
+      {
+        "dimension": "DOPPLER_DRIFT",
+        "level": 1200.0,
+        "unit": "Hz/s",
+        "decision": "ESTIMATED",
+        "protocol": "QPSK",
+        "temporal_stability_score": 0.3175,
+        "evidence_score": 0.5,
+        "latency_ms": 1193.1276321411133
+      },
+      {
+        "dimension": "DOPPLER_DRIFT",
+        "level": 2000.0,
+        "unit": "Hz/s",
+        "decision": "ESTIMATED",
+        "protocol": "QPSK",
+        "temporal_stability_score": 0.3065,
+        "evidence_score": 0.5,
+        "latency_ms": 1253.0364990234375
+      }
+    ],
+    "observation_duration": [
+      {
+        "dimension": "DURATION",
+        "level": 100000,
+        "unit": "samples",
+        "duration_ms": 2267.573696145125,
+        "decision": "VALIDATED",
+        "protocol": "2-FSK (ASCII / ITA-5 110 Baud)",
+        "matched_truth": true,
+        "latency_ms": 1193.4394836425781
+      },
+      {
+        "dimension": "DURATION",
+        "level": 50000,
+        "unit": "samples",
+        "duration_ms": 1133.7868480725624,
+        "decision": "ESTIMATED",
+        "protocol": "2-FSK (ASCII / ITA-5 110 Baud)",
+        "matched_truth": true,
+        "latency_ms": 955.89280128479
+      },
+      {
+        "dimension": "DURATION",
+        "level": 20000,
+        "unit": "samples",
+        "duration_ms": 453.51473922902494,
+        "decision": "ESTIMATED",
+        "protocol": "2-FSK (ASCII / ITA-5 110 Baud)",
+        "matched_truth": true,
+        "latency_ms": 830.1947116851807
+      },
+      {
+        "dimension": "DURATION",
+        "level": 8192,
+        "unit": "samples",
+        "duration_ms": 185.75963718820861,
+        "decision": "ESTIMATED",
+        "protocol": "AM (Amplitude Modulated)",
+        "matched_truth": true,
+        "latency_ms": 588.5655879974365
+      },
+      {
+        "dimension": "DURATION",
+        "level": 4096,
+        "unit": "samples",
+        "duration_ms": 92.87981859410431,
+        "decision": "ESTIMATED",
+        "protocol": "8-FSK / M-FSK (Amateur Weak-Signal Mode / FT8)",
+        "matched_truth": true,
+        "latency_ms": 494.37904357910156
+      },
+      {
+        "dimension": "DURATION",
+        "level": 2048,
+        "unit": "samples",
+        "duration_ms": 46.439909297052154,
+        "decision": "ESTIMATED",
+        "protocol": "8-FSK / M-FSK (Amateur Weak-Signal Mode / FT8)",
+        "matched_truth": true,
+        "latency_ms": 426.8300533294678
+      }
+    ]
+  }
+}
