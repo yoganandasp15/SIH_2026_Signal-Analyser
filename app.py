@@ -560,99 +560,70 @@ st.markdown("""
         line-height: 1.4;
     }
 
-    /* Light workstation skin: visual-only overrides, preserving layout and
-       all Streamlit widgets/processing behavior. */
-    :root {
-        --ui-ink: #243447;
-        --ui-muted: #667085;
-        --ui-line: #d9e1ea;
-        --ui-surface: #ffffff;
-        --ui-surface-soft: #f7f9fc;
-        --ui-accent: #1769aa;
-    }
+    /* Core Workstation Global Canvas & Components (Defense Dark) */
     html, body, [data-testid="stAppViewContainer"],
     [data-testid="stAppViewContainer"] > .main,
     .stApp {
-        background: #ffffff !important;
-        color: var(--ui-ink) !important;
+        background: #0b0f17 !important;
+        color: #e6edf5 !important;
     }
     [data-testid="stHeader"] {
-        background: rgba(255, 255, 255, 0.96) !important;
-        border-bottom: 1px solid var(--ui-line) !important;
+        background: rgba(11, 15, 23, 0.96) !important;
+        border-bottom: 1px solid #1e293b !important;
     }
     [data-testid="stSidebar"] {
-        background: #f7f9fc !important;
-        border-right: 1px solid var(--ui-line) !important;
+        background: #111722 !important;
+        border-right: 1px solid #263447 !important;
     }
     [data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
     [data-testid="stSidebar"] label,
     [data-testid="stSidebar"] p,
     [data-testid="stSidebar"] span {
-        color: var(--ui-ink) !important;
+        color: #dbe5ef !important;
     }
-    .workstation-banner, .verdict-card, .param-card, .trace-step-card,
-    .instrument-table, .hud-card-layer-a {
-        background: var(--ui-surface) !important;
-        border-color: var(--ui-line) !important;
-        box-shadow: 0 2px 9px rgba(31, 52, 73, 0.06) !important;
-    }
-    .telemetry-chip, .metric-cell, .verdict-explanation-box {
-        background: var(--ui-surface-soft) !important;
-        border-color: var(--ui-line) !important;
-    }
-    .section-header {
-        color: #526173 !important;
-        border-bottom-color: var(--ui-line) !important;
-    }
-    .section-num, .chip-val, .metric-cell-value, .param-numeric,
-    .param-uncertainty-line, .workstation-title, .verdict-target-title {
-        color: var(--ui-ink) !important;
-    }
-    .workstation-subtitle, .metric-cell-sub, .param-reason-line,
-    .param-footer, .trace-step-body, .chip-label, .metric-cell-label,
-    .param-title {
-        color: var(--ui-muted) !important;
-    }
-    .hud-card-layer-a {
-        border-left: 4px solid #2b7bbb !important;
+    .instrument-table {
+        background: #111722 !important;
+        border: 1px solid #1e293b !important;
     }
     .instrument-table th {
-        background: #eef3f8 !important;
-        color: #526173 !important;
-        border-bottom-color: var(--ui-line) !important;
+        background: #0b0f17 !important;
+        color: #94a3b8 !important;
+        border-bottom: 1px solid #1e293b !important;
     }
     .instrument-table td {
-        color: var(--ui-ink) !important;
-        border-bottom-color: #e8edf3 !important;
+        color: #cbd5e1 !important;
+        border-bottom: 1px solid #182234 !important;
     }
     .instrument-table tr:hover td {
-        background: #f7faff !important;
+        background: #172338 !important;
+        color: #ffffff !important;
+    }
+    .mono-cell {
+        color: #f1f5f9 !important;
     }
     input, textarea, [data-baseweb="select"] > div,
     [data-testid="stNumberInput"] input {
-        background: #ffffff !important;
-        color: var(--ui-ink) !important;
-        border-color: #c8d3df !important;
+        background: #111722 !important;
+        color: #e6edf5 !important;
+        border-color: #263447 !important;
     }
     button[kind="secondary"], [data-testid="stDownloadButton"] button {
-        background: #ffffff !important;
-        color: var(--ui-accent) !important;
-        border: 1px solid #a9bfd4 !important;
-        border-radius: 6px !important;
+        background: #111722 !important;
+        color: #38bdf8 !important;
+        border: 1px solid #263447 !important;
     }
     button[kind="secondary"]:hover, [data-testid="stDownloadButton"] button:hover {
-        background: #eef6fc !important;
-        border-color: #6ea6cf !important;
+        background: #1a2536 !important;
+        border-color: #38bdf8 !important;
+        color: #ffffff !important;
     }
-    /* Re-skin legacy inline dark surfaces without moving or rewriting them. */
-    div[style*="background:#111722"], div[style*="background: #111722"],
-    div[style*="background:#0b0f17"], div[style*="background: #0b0f17"] {
-        background: #ffffff !important;
-        border-color: var(--ui-line) !important;
+    [data-testid="stExpander"] {
+        background: #111722 !important;
+        border: 1px solid #1e293b !important;
+        border-radius: 6px !important;
     }
-    div[style*="color:#f8fafc"], div[style*="color: #f8fafc"],
-    div[style*="color:#ffffff"], div[style*="color: #ffffff"] {
-        color: var(--ui-ink) !important;
+    [data-testid="stExpander"] summary {
+        color: #e6edf5 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -706,49 +677,15 @@ def main():
     # -------------------------------------------------------------
     # SIDEBAR: SIGNAL INGESTION (All 25 Verified Defense Intercepts)
     # -------------------------------------------------------------
-    st.sidebar.markdown("### Appearance")
-    st.sidebar.radio(
-        "Theme",
-        options=["Light", "Dark"],
-        index=0 if st.session_state.get("ui_theme", "light") == "light" else 1,
-        key="ui_theme",
-        horizontal=True,
-        label_visibility="collapsed",
+    set_plot_theme("dark")
+    st.session_state["ui_theme"] = "dark"
+    st.sidebar.markdown(
+        """<div style="display:flex; align-items:center; gap:8px; margin-bottom:14px; font-size:0.75rem; color:#38bdf8; background:#111722; padding:6px 10px; border-radius:5px; border:1px solid #1e293b;">
+            <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981; box-shadow:0 0 6px #10b981;"></span>
+            <span style="letter-spacing:0.04em;"><strong>MODE:</strong> TACTICAL DEFENSE DARK</span>
+        </div>""",
+        unsafe_allow_html=True
     )
-    active_theme = st.session_state.get("ui_theme", "light")
-    set_plot_theme(active_theme.lower())
-    if active_theme == "Dark":
-        st.markdown("""
-        <style>
-            :root { --ui-ink:#e6edf5; --ui-muted:#9aa9ba; --ui-line:#2b394b; --ui-surface:#111722; --ui-surface-soft:#0b0f17; --ui-accent:#55b7e8; }
-            html, body, [data-testid="stAppViewContainer"], [data-testid="stAppViewContainer"] > .main, .stApp { background:#0b0f17 !important; color:#e6edf5 !important; }
-            [data-testid="stHeader"] { background:rgba(11,15,23,.96) !important; border-bottom-color:#1e293b !important; }
-            [data-testid="stSidebar"] { background:#111722 !important; border-right-color:#263447 !important; }
-            [data-testid="stSidebar"] [data-testid="stMarkdownContainer"], [data-testid="stSidebar"] label, [data-testid="stSidebar"] p, [data-testid="stSidebar"] span { color:#dbe5ef !important; }
-            .workstation-banner, .verdict-card, .param-card, .trace-step-card, .instrument-table, .hud-card-layer-a { background:#111722 !important; border-color:#263447 !important; box-shadow:none !important; }
-            .telemetry-chip, .metric-cell, .verdict-explanation-box { background:#0b0f17 !important; border-color:#263447 !important; }
-            .section-header { color:#9aa9ba !important; border-bottom-color:#2b394b !important; }
-            .section-num, .chip-val, .metric-cell-value, .param-numeric, .param-uncertainty-line, .workstation-title, .verdict-target-title { color:#e6edf5 !important; }
-            .workstation-subtitle, .metric-cell-sub, .param-reason-line, .param-footer, .trace-step-body, .chip-label, .metric-cell-label, .param-title { color:#9aa9ba !important; }
-            .instrument-table th { background:#0b0f17 !important; color:#9aa9ba !important; border-bottom-color:#2b394b !important; }
-            .instrument-table td { color:#dbe5ef !important; border-bottom-color:#1e293b !important; }
-            input, textarea, [data-baseweb="select"] > div, [data-testid="stNumberInput"] input { background:#111722 !important; color:#e6edf5 !important; border-color:#3a4c61 !important; }
-            button[kind="secondary"], [data-testid="stDownloadButton"] button { background:#111722 !important; color:#55b7e8 !important; border-color:#3a607a !important; }
-            [data-testid="stExpander"] summary, [data-testid="stExpander"] summary *, div[role="radiogroup"] label, div[role="radiogroup"] label * { color:#dbe5ef !important; }
-            [style*="color:#243447"], [style*="color: #243447"], [style*="color:#526173"], [style*="color: #526173"] { color:#dbe5ef !important; }
-        </style>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown("""
-        <style>
-            /* Explicit text contrast for legacy inline labels on the light theme. */
-            [style*="color:#f8fafc"], [style*="color: #f8fafc"], [style*="color:#ffffff"], [style*="color: #ffffff"], [style*="color:#f1f5f9"], [style*="color: #f1f5f9"] { color:#243447 !important; }
-            [style*="color:#94a3b8"], [style*="color: #94a3b8"], [style*="color:#cbd5e1"], [style*="color: #cbd5e1"] { color:#667085 !important; }
-            [style*="background:#111722"], [style*="background: #111722"], [style*="background:#0b0f17"], [style*="background: #0b0f17"], [style*="background:#0f172a"], [style*="background: #0f172a"] { background:#ffffff !important; border-color:#d9e1ea !important; }
-            .hud-card-layer-a, details, [data-testid="stExpander"] { background:#ffffff !important; border-color:#d9e1ea !important; }
-            [data-testid="stExpander"] summary, [data-testid="stExpander"] summary *, div[role="radiogroup"] label, div[role="radiogroup"] label * { color:#344054 !important; }
-        </style>
-        """, unsafe_allow_html=True)
 
     st.sidebar.markdown("### Signal Ingestion")
 
